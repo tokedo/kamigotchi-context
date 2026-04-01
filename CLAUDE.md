@@ -62,9 +62,9 @@
 
   ## Integration Layer
 
-  On-chain interaction docs live in `integration/`. Sources:
-  - **kamigotchi-docs** (Asphodel-OS) — player API, architecture, game data
-  - **kamigotchi-abis** — ABI JSONs extracted from contract source
+  On-chain interaction docs live in `integration/`. When updating integration
+  files, the source is:
+  - **Game source code**: [`kamigotchi`](https://github.com/Asphodel-OS/kamigotchi) — canonical contract logic, ABI extraction
 
   Key facts:
   - Chain: **Yominet** (Chain ID `428962654539583`)
