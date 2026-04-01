@@ -1,0 +1,42 @@
+Index,Name,Status,Type,Output Index,Output Name,Output Amount,Input Indices,Input Amounts,Stamina Cost,XP Output,Tool Index,Tool Name,Min Level
+1,Brew XP Potion,To Update,CONSUMABLE,11401,XP Potion,1,"1003,1104","1,250",20,50,23101,Portable Burner,1
+2,Brew Greater XP Potion,To Update,CONSUMABLE,11402,Greater XP Potion,1,"1006,1104","1,2500",50,1000,23101,Portable Burner,1
+3,Brew Respec Potion,To Update,CONSUMABLE,11403,Respec Potion,1,"1003,1112","1,500",50,200,23101,Portable Burner,1
+4,Brew Grace Potion,To Update,CONSUMABLE,11404,Grace Potion,1,"1003,1111,1110","1,100,50",25,150,23101,Portable Burner,1
+5,Brew Bless Potion,To Update,CONSUMABLE,11405,Bless Potion,1,"1003,1111","1,100",15,50,23101,Portable Burner,1
+6,Extract Pine Pollen,In Game,REAGENT,1104,Pine Pollen,500,1004,1,10,25,23100,Spice Grinder,1
+7,Extract Microplastics,In Game,REAGENT,1103,Microplastics,500,1003,1,30,100,23100,Spice Grinder,1
+8,Extract Daffodil,In Game,REAGENT,1111,Essence of Daffodil,500,1011,1,10,25,23100,Spice Grinder,1
+9,Extract Mint,In Game,REAGENT,1112,Shredded Mint,500,1012,1,20,100,23100,Spice Grinder,1
+10,Extract Black Poppy,In Game,REAGENT,1110,Black Poppy Extract,500,1010,1,20,250,23100,Spice Grinder,1
+11,Assemble Aetheric Sextant,In Game,SPECIAL,100004,Aetheric Sextant,1,"100003,100001,100002","1,1,1",100,5000,,None,1
+12,Grind Berry Chalk,In Game,REAGENT,1114,Berry Chalk,500,1014,1,10,50,23100,Spice Grinder,1
+13,Crush Red Amber,In Game,REAGENT,1107,Powdered Red Amber,500,1007,1,20,250,23100,Spice Grinder,1
+14,Mix Holy Syrup,To Update,REAGENT,1201,Holy Syrup,500,11011,1,20,100,23101,Portable Burner,1
+15,Process Resin,To Update,REAGENT,1202,Resin Tincture,500,11311,1,10,25,23101,Portable Burner,1
+16,Extract Powder,In Game,REAGENT,1113,Sanguineous Powder,500,1013,1,10,25,23100,Spice Grinder,1
+17,Chisel Cup,In Game,MATERIAL,1102,Empty Cup,1,1002,1,25,30,23102,Screwdriver,1
+18,Brew Hostility Potion,To Update,CONSUMABLE,11410,Hostility Potion,1,"1102,1113,1104","1,250,250",20,75,23101,Portable Burner,1
+19,Brew Energy Drink,To Update,CONSUMABLE,11409,Energy Drink,1,"1005,1114,1202","1,250,250",20,75,23101,Portable Burner,1
+20,Write Apology Letter,In Game,CONSUMABLE,11406,Apology Letter,1,"1001,1113,1202","2,125,125",20,75,23100,Spice Grinder,1
+21,Craft Festival Chime,In Game,CONSUMABLE,11408,Festival Chime,1,"1005,1201","3,250",25,100,23102,Screwdriver,1
+22,Craft $MUSU Magnet,In Game,CONSUMABLE,11407,MUSU Magnet,1,"1002,1107,1201","1,50,100",25,100,23102,Screwdriver,1
+23,Craft Spirit Glue,To Update,CONSUMABLE,19001,Spirit Glue,1,"1003,1103,1114","1,200,200",20,75,23101,Portable Burner,1
+24,Craft Animistic Poison,To Update,CONSUMABLE,19101,Animistic Poison,1,"1202,11314,1113","150,5,150",25,200,23101,Portable Burner,15
+25,Craft Cthonic Blight,To Update,CONSUMABLE,19201,Cthonic Blight,1,"1201,11312,11227","100,1,1",25,300,23101,Portable Burner,15
+26,Craft Flash Talisman,In Game,CONSUMABLE,11412,Flash Talisman,7,"1016,6005,1103","2,1,500",50,1500,,None,20
+28,Craft Toadstool Liquor,To Update,CONSUMABLE,11501,Toadstool Liquor,1,"1113,1110,1114","5000,250,250",50,1000,23101,Portable Burner,15
+29,Craft Fortified XP Potion,To Update,CONSUMABLE,11411,Fortified XP Potion,1,"11402,1107,6006","1,300,1",75,7500,23101,Portable Burner,20
+30,Craft Pure Essence,In Game,REAGENT,6007,Pure Essence,1,"6001,6005,6003,6002,6004,6006","1,1,1,1,1,1",75,10000,,None,20
+31,Craft Timber with Stems,In Game,MATERIAL,1302,Timber,1,1016,100,50,300,23101,Portable Burner,15
+32,Craft Ingot with Pipes,In Game,MATERIAL,1303,Ingot,1,1017,100,50,300,23101,Portable Burner,15
+33,Craft Ashlar with Bone,In Game,MATERIAL,1301,Ashlar,1,1020,100,50,300,23100,Spice Grinder,15
+34,Craft Timber with Stick,In Game,MATERIAL,1302,Timber,1,1001,100,50,300,23101,Portable Burner,15
+35,Craft Ingot with Scrap,In Game,MATERIAL,1303,Ingot,1,1005,100,50,300,23101,Portable Burner,15
+36,Craft Ashlar with Stone,In Game,MATERIAL,1301,Ashlar,1,1002,100,50,300,23100,Spice Grinder,15
+37,Craft Uninteresting Paste,In Game,CONSUMABLE,21206,Uninteresting Paste,1,"1018,6004","20,1",50,1500,23101,Portable Burner,15
+38,Extract Microplastics From Cigs,In Game,REAGENT,1103,Microplastics,250,1018,1,15,50,23100,Spice Grinder,1
+39,Extract Irradiated Root,To Deploy,REAGENT,1121,Pallid Root Extract,500,1021,1,30,250,23100,Spice Grinder,15
+40,Craft Pale Potion,To Deploy,CONSUMABLE,11004,Pale Potion,1,"1003,1121,1112","1,200,100",50,500,23101,Portable Burner,15
+41,Assemble Dowsing Rod,To Deploy,SPECIAL,100010,Dowsing Rod,1,"1021,1303,6003","1,1,1",100,2500,,None,1
+10001,Craft Wonder Egg,In Game,HIDDEN,21003,Wonder Egg,1,1015,5,0,0,,None,1
