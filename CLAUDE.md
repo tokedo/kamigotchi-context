@@ -2,33 +2,40 @@
                                                                                                                         
   ## What This Project Is                                                                                               
    
-  This repo contains **decision-oriented game context** for AI agents that play                                         
-  Kamigotchi — a pure on-chain MMORPG on Yominet. It is Layer 2b of the
-  documentation pipeline, distilled from the technical GDD at
-  [`kamigotchi-gdd`](https://github.com/tokedo/kamigotchi-gdd).                                                                                                   
+  This repo contains **decision-oriented game context** for AI agents that play
+  Kamigotchi — a pure on-chain MMORPG on Yominet. It is self-contained: the
+  playing agent reads only files in this repo. The content was distilled from
+  the technical GDD at [`kamigotchi-gdd`](https://github.com/tokedo/kamigotchi-gdd)
+  (used by the context builder, not by the playing agent).                                                                                                   
                                                                                                                         
   ## Your Role                                                                                                          
                                                                                                                         
   You are building context files that help an AI agent make optimal in-game                                             
   decisions. You are NOT writing player tutorials or technical docs.
                                                                                                                         
-  ## Source of Truth                                              
-                                                                                                                        
-  - **GDD repo (Layer 1)**: [`kamigotchi-gdd`](https://github.com/tokedo/kamigotchi-gdd) — mechanics, formulas, catalogs                                          
+  ## Source of Truth
+
+  **For the playing agent**: this repo's `systems/` and `catalogs/` files are
+  the complete source of truth. The agent should never need to read external
+  repos — all decision-relevant mechanics, formulas, and thresholds are
+  distilled here.
+
+  **For the context builder** (you, when updating this repo):
+  - **GDD repo**: [`kamigotchi-gdd`](https://github.com/tokedo/kamigotchi-gdd) — raw mechanics, formulas, source citations
   - **Game source code**: `https://github.com/Asphodel-OS/kamigotchi`
-  - When in doubt, read the GDD mechanic file for the exact formula.                                                    
-                                                                                                                        
-  ## Writing Rules                                                                                                      
-                                                                                                                        
-  1. **Decision-first**: every section should answer "what should the agent do?"                                        
+  - Read GDD files to verify formulas, then distill into agent-oriented `systems/` files.
+
+  ## Writing Rules
+
+  1. **Decision-first**: every section should answer "what should the agent do?"
   2. **Terse**: no narrative, no flavor text, no "in Kamigotchi, players can..."
-  3. **Conditional**: use "if X, then Y" patterns, not prose descriptions                                               
-  4. **Quantitative**: include exact thresholds, ratios, and formulas that affect decisions                             
-  5. **Referenced**: link to GDD files for deep dives, don't duplicate formulas                                         
-  6. **State-aware**: describe what game state the agent should check before acting                                     
-  7. README.md is the entry point — it must fit in ~2-3 pages and link to everything                                    
-  8. System files go in `systems/`, catalogs in `catalogs/`, strategy guides in `strategies/`                           
-  9. Mark any uncertain decision heuristics with `> ⚠️  HEURISTIC:` — needs playtesting                                  
+  3. **Conditional**: use "if X, then Y" patterns, not prose descriptions
+  4. **Quantitative**: include exact thresholds, ratios, and formulas that affect decisions
+  5. **Self-contained**: all decision-relevant formulas must be present in this repo. Never link to external repos for formulas — the playing agent only reads files in this repo
+  6. **State-aware**: describe what game state the agent should check before acting
+  7. README.md is the entry point — it must fit in ~2-3 pages and link to everything
+  8. System files go in `systems/`, catalogs in `catalogs/`, strategy guides in `strategies/`
+  9. Mark any uncertain decision heuristics with `> HEURISTIC:` — needs playtesting
   10. Catalogs are CSV with a comment header explaining key columns and decision relevance
 
   ## Integration Layer

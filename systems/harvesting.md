@@ -4,8 +4,6 @@ Harvesting is the primary income loop. A Kami sits on a node, earns Musu over
 time, takes HP strain, and can be liquidated (killed) by another player's Kami
 on the same node.
 
-GDD reference: `mechanics/economy/harvesting.md`, `mechanics/core-kami/health-healing.md`
-
 ## Lifecycle
 
 ```
@@ -235,24 +233,20 @@ Every collect/stop also triggers:
 
 ## Quick Reference: Optimal Harvest Session
 
-For a Kami with Power P, Harmony H, max HP = Total:
+Two-step estimate using the tables above:
 
-```
-Safe harvest duration ≈ (Total * 0.5) / (strain_rate)
-where strain_rate ≈ P * 1500 * Efficacy * 6500 / (3600 * 1e6 * (H + 20))
-```
-
-Simplified (neutral affinity, no bonuses):
-```
-safe_hours ≈ Total * (H + 20) / (P * 2708)
-```
+1. **Safe Musu** = (HP * 0.5) / strain_per_musu (from Strain-to-Bounty table)
+2. **Safe hours** = safe_musu / musu_per_hour (from Reference Output Rates table)
 
 Example: Power=10, Harmony=10, HP=50:
 ```
-safe_hours ≈ 50 * 30 / (10 * 2708) ≈ 0.55 hours ≈ 33 minutes to 50% HP
+strain_per_musu = 6.5 / (10 + 20) = 0.217
+safe_musu = 25 / 0.217 ≈ 115 Musu
+At ~15 Musu/hr (Power=10, neutral): safe_hours ≈ 115 / 15 ≈ 7.7 hours to 50% HP
 ```
 
-This Kami should collect every ~30 min and stop within ~1 hour.
+This Kami can harvest for several hours safely. Collect periodically to bank
+bounty and reset scavenge progress, but no urgency to stop for HP reasons.
 
 ## Node Catalog Reference
 

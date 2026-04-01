@@ -1,8 +1,8 @@
 # Kamigotchi Agent Context
 
 Decision-oriented context for an AI agent playing Kamigotchi — a pure on-chain
-MMORPG on Yominet. For full formulas and source citations, see the GDD at
-[`kamigotchi-gdd`](https://github.com/tokedo/kamigotchi-gdd).
+MMORPG on Yominet. All game mechanics the agent needs are distilled into
+`systems/` files in this repo.
 
 ## Core Loop
 
@@ -61,71 +61,71 @@ See [systems/harvesting.md](systems/harvesting.md).
 While `RESTING`, HP regens at `~(Harmony + 20) * 0.6 / 3600` HP/s base.
 A Harmony-10 Kami heals ~18 HP/hr. Full heal from 0 takes ~2.8h at Harmony 10.
 If HP = 0, Kami dies. Revival costs 33 Onyx Shards and restores only 33 HP.
-GDD: `mechanics/core-kami/health-healing.md`
+See [systems/health.md](systems/health.md).
 
 ### Leveling & Skills
 XP cost per level: `40 * 1.259^(level-1)`. Each level grants 1 skill point.
 Four skill trees: **Predator** (combat), **Enlightened** (sustain),
 **Guardian** (defense), **Harvester** (harvest). Tier gates at 5/15/25/40/55/75/95
 tree points. Mutual exclusions at tiers 3 and 6.
-GDD: `mechanics/core-kami/experience-leveling.md`, `mechanics/progression/skills.md`
+See [systems/leveling.md](systems/leveling.md).
 
 ### Scavenging (secondary loot)
 Harvest output fills a per-node scavenge bar. When full, claim for a
 droptable roll. Tier costs: 100–500 depending on node. Higher-cost nodes
 have rarer droptables. Uses commit-reveal (two transactions).
-GDD: `mechanics/world/scavenging.md`
+See [systems/scavenging.md](systems/scavenging.md).
 
 ### Liquidation (PvP)
 Another harvesting Kami on the same node can kill yours if your HP drops
 below a threshold based on attacker Violence vs your Harmony. Victim dies,
 loses most bounty. Attacker steals spoils and earns 1 Obol.
-GDD: `mechanics/combat/kill.md`
+See [systems/liquidation.md](systems/liquidation.md).
 
 ### Crafting
 Convert input items → output items via recipes. Costs stamina. Grants
 account XP. Recipes may require specific room or level.
-GDD: `mechanics/economy/crafting.md`
+See [systems/crafting.md](systems/crafting.md).
 
 ### Trading (P2P)
 Orderbook model: Create → Execute → Complete. One item each side, one side
 must be Musu. Fees apply (creation fee + delivery fee; delivery waived in
 room 66). Tax on Musu transfers.
-GDD: `mechanics/economy/trading.md`
+See [systems/trading.md](systems/trading.md).
 
 ### NPC Shops
 Buy/sell items at NPCs. Must be in same room (or NPC is global). Buy prices
 may use GDA (dynamic pricing — rises with demand, decays over time).
-GDD: `mechanics/economy/npc-shops.md`
+See [systems/npc-shops.md](systems/npc-shops.md).
 
 ### Equipment
 Equip items to Kami for stat bonuses. One item per slot. Must be `RESTING`
 to equip/unequip. Default capacity: 1 slot.
-GDD: `mechanics/economy/equipment.md`
+See [systems/equipment.md](systems/equipment.md).
 
 ### Movement & Rooms
 70 rooms across 4 z-planes. Move to adjacent rooms or via special exits.
 Costs stamina. Gates may restrict access (level, quest flags, items).
 Room 66 = Marketplace (no trade delivery fee). Room 1 = start.
-GDD: `mechanics/world/rooms.md`
+See [systems/rooms.md](systems/rooms.md).
 
 ### Quests
 ~130 quests (main story chain, faction, side). Accept → complete objectives
 → claim rewards (items, reputation, flags). Most main quests are sequential.
 Objectives track deltas from acceptance (snapshot-based).
-GDD: `mechanics/progression/quests.md`
+See [systems/quests.md](systems/quests.md).
 
 ### Gacha & Sacrifice
 Mint new Kamis with Gacha Tickets (commit-reveal randomness from pool).
 Sacrifice permanently burns a Kami for a random item; pity system guarantees
 uncommon every 20, rare every 100 sacrifices.
-GDD: `mechanics/gacha/gacha.md`, `mechanics/combat/sacrifice.md`
+See [systems/gacha.md](systems/gacha.md).
 
 ### Day/Night Cycle
 36-hour cycle: DAYLIGHT (0-11h), EVENFALL (12-23h), MOONSIDE (24-35h).
 `phase = ((timestamp / 3600) % 36) / 12 + 1`. Some quests and mechanics
 are phase-gated.
-GDD: `mechanics/world/day-night-cycle.md`
+See [systems/day-night.md](systems/day-night.md).
 
 ### State Reading (perception)
 How to query on-chain state, project HP/stamina between syncs, and
@@ -141,13 +141,14 @@ See [systems/memory.md](systems/memory.md).
 ### Factions & Reputation
 Three factions: Agency, Elders (Mina), Nursery. Reputation gained via quest
 rewards (2/4/6 per quest). Tracked as leaderboard scores.
-GDD: `mechanics/social/factions.md`
+See [systems/factions.md](systems/factions.md).
 
 ## Cooldowns
 
 Base cooldown: **180 seconds** after most actions. Modified by
 `STND_COOLDOWN_SHIFT` bonus (skills can reduce it). Always check cooldown
 before planning the next action.
+See [systems/accounts.md](systems/accounts.md).
 
 ## How to Execute Actions
 
@@ -211,4 +212,25 @@ On each agent decision cycle, evaluate in priority order:
 | [catalogs/rooms.csv](catalogs/rooms.csv) | Room map: coordinates, exits, gates |
 | [catalogs/shop-listings.csv](catalogs/shop-listings.csv) | NPC shop items and prices |
 | [catalogs/scavenge-droptables.csv](catalogs/scavenge-droptables.csv) | Node scavenge reward tables |
-| [systems/state-reading.md](systems/state-reading.md) | How to read game state: queries, projections, perception loop |
+
+## Systems
+
+| File | What it covers |
+|---|---|
+| [systems/harvesting.md](systems/harvesting.md) | Primary income loop: node selection, bounty, strain, liquidation risk |
+| [systems/health.md](systems/health.md) | HP mechanics, resting recovery, death, revival |
+| [systems/leveling.md](systems/leveling.md) | XP, level-up costs, skill trees, tier gates, build decisions |
+| [systems/scavenging.md](systems/scavenging.md) | Scavenge bar, tier claiming, droptable commit-reveal |
+| [systems/liquidation.md](systems/liquidation.md) | PvP kill mechanics, threat assessment, affinity combat triangle |
+| [systems/crafting.md](systems/crafting.md) | Recipes, item types, using/burning/transferring items |
+| [systems/trading.md](systems/trading.md) | P2P trades, Kami marketplace, fees, tax |
+| [systems/npc-shops.md](systems/npc-shops.md) | NPC buy/sell, GDA pricing, newbie vendor, auctions |
+| [systems/equipment.md](systems/equipment.md) | Equip/unequip, slot system, stat bonuses |
+| [systems/rooms.md](systems/rooms.md) | World map, movement, stamina cost, gates |
+| [systems/quests.md](systems/quests.md) | Quest types, objectives, rewards, community goals |
+| [systems/gacha.md](systems/gacha.md) | Minting Kamis, rerolling, sacrifice, pity system |
+| [systems/day-night.md](systems/day-night.md) | 36-hour phase cycle, phase-gated actions |
+| [systems/factions.md](systems/factions.md) | Faction reputation, quest-based rep gains |
+| [systems/accounts.md](systems/accounts.md) | Stats, stamina, cooldowns, owner/operator wallets |
+| [systems/state-reading.md](systems/state-reading.md) | On-chain queries, HP/stamina projection, perception loop |
+| [systems/memory.md](systems/memory.md) | Agent memory schema, plan hierarchy, session lifecycle |
