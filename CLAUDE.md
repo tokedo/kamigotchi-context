@@ -69,13 +69,15 @@
 
   ## Memory System
 
-  The agent maintains persistent state in `memory/` (gitignored, account-specific).
+  The agent is a **multi-account mastermind** controlling 1–N accounts.
+  Persistent state lives in `memory/` (gitignored).
   See [systems/memory.md](systems/memory.md) for the full specification.
 
   On session start, always read:
   1. `systems/memory.md` — understand the memory schema
-  2. `memory/account.md` — account identity and state cache
-  3. `memory/plans/INDEX.md` — current plan tree
+  2. `memory/accounts/INDEX.md` — account roster (labels, roles, wallets)
+  3. `memory/accounts/<label>.md` — per-account snapshots
+  4. `memory/plans/INDEX.md` — current plan tree (portfolio → strategic → tactical → routine)
 
-  If `memory/` is empty or missing, this is a cold start — run a plan revision
-  session to initialize plans from current game state.
+  If `memory/` is empty or missing, this is a cold start — perceive all
+  accounts, assign roles, and run a plan revision session to initialize.

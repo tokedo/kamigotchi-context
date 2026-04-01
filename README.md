@@ -133,9 +133,10 @@ enumerate inventory/quests. The agent's "nervous system."
 See [systems/state-reading.md](systems/state-reading.md).
 
 ### Memory (persistence)
-Account-specific state — plans, decisions, snapshots — persisted in `memory/`
-(gitignored). Makes the agent stateless between sessions: a fresh agent reads
-the schema and picks up where the last session left off.
+Multi-account state — portfolio plans, per-account snapshots, decisions —
+persisted in `memory/` (gitignored). A single mastermind agent controls 1–N
+accounts. Reads the roster, perceives all accounts, then executes
+portfolio-level plans that coordinate work across accounts.
 See [systems/memory.md](systems/memory.md).
 
 ### Factions & Reputation
