@@ -127,6 +127,17 @@ GDD: `mechanics/gacha/gacha.md`, `mechanics/combat/sacrifice.md`
 are phase-gated.
 GDD: `mechanics/world/day-night-cycle.md`
 
+### State Reading (perception)
+How to query on-chain state, project HP/stamina between syncs, and
+enumerate inventory/quests. The agent's "nervous system."
+See [systems/state-reading.md](systems/state-reading.md).
+
+### Memory (persistence)
+Account-specific state — plans, decisions, snapshots — persisted in `memory/`
+(gitignored). Makes the agent stateless between sessions: a fresh agent reads
+the schema and picks up where the last session left off.
+See [systems/memory.md](systems/memory.md).
+
 ### Factions & Reputation
 Three factions: Agency, Elders (Mina), Nursery. Reputation gained via quest
 rewards (2/4/6 per quest). Tracked as leaderboard scores.
@@ -137,6 +148,30 @@ GDD: `mechanics/social/factions.md`
 Base cooldown: **180 seconds** after most actions. Modified by
 `STND_COOLDOWN_SHIFT` bonus (skills can reduce it). Always check cooldown
 before planning the next action.
+
+## How to Execute Actions
+
+All gameplay = transactions on **Yominet** (Chain ID `428962654539583`, flat `0.0025 gwei` gas).
+RPC: `https://jsonrpc-yominet-1.anvil.asia-southeast.initia.xyz`
+
+**Wallets**: two keys per player.
+- **Owner** — registers account, trades, mints, approves ERC-20s. Holds ETH + tokens.
+- **Operator** — all gameplay (harvest, move, equip, quests). Delegated from owner via `system.account.set.operator`.
+
+**Calling a system**: hash the system ID string → resolve address from World → call `executeTyped(...)`.
+```
+address = World.systems().getEntitiesWithValue(keccak256(systemId))
+```
+Some systems use non-standard entry points (e.g., `reveal()`, `deposit()`, `batchTransfer()`)
+instead of `executeTyped()`. Check [integration/system-ids.md](integration/system-ids.md)
+for the full list and signatures.
+
+**Entity IDs**: most are deterministic hashes — `keccak256(prefix, index)`. Accounts use
+`uint256(ownerAddress)`. See [integration/entity-ids.md](integration/entity-ids.md).
+
+Setup: [integration/bootstrap.md](integration/bootstrap.md) |
+SDK patterns: [integration/sdk-setup.md](integration/sdk-setup.md) |
+All system IDs: [integration/system-ids.md](integration/system-ids.md)
 
 ## Per-Tick Decision Checklist
 
@@ -176,3 +211,4 @@ On each agent decision cycle, evaluate in priority order:
 | [catalogs/rooms.csv](catalogs/rooms.csv) | Room map: coordinates, exits, gates |
 | [catalogs/shop-listings.csv](catalogs/shop-listings.csv) | NPC shop items and prices |
 | [catalogs/scavenge-droptables.csv](catalogs/scavenge-droptables.csv) | Node scavenge reward tables |
+| [systems/state-reading.md](systems/state-reading.md) | How to read game state: queries, projections, perception loop |

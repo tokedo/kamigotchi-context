@@ -261,3 +261,49 @@ See [catalogs/nodes.csv](../catalogs/nodes.csv) for all 65 nodes with:
 - Level limits
 - Scavenge cost
 - Drop descriptions
+
+## How to Execute
+
+All harvest calls use the **Operator** wallet. Gas is default except liquidate.
+
+### System IDs
+
+| Action | System ID |
+|---|---|
+| Start | `system.harvest.start` |
+| Stop | `system.harvest.stop` |
+| Collect | `system.harvest.collect` |
+| Liquidate | `system.harvest.liquidate` |
+
+### Harvest Entity ID
+
+Derived deterministically from the Kami entity ID — no on-chain lookup needed:
+```
+harvestId = keccak256(abi.encodePacked("harvest", kamiEntityId))
+```
+One harvest per Kami at a time. Use `harvestId` for stop/collect/liquidate calls.
+
+### Function Signatures
+
+**start** — `executeTyped(uint256 kamiID, uint32 nodeIndex, uint256 taxerID, uint256 taxAmt)`
+Pass `0, 0` for taxerID/taxAmt (player-initiated). Batch variant:
+`executeBatched(uint256[] kamiIDs, uint32 nodeIndex, uint256 taxerID, uint256 taxAmt)`
+
+**stop** — `executeTyped(uint256 harvestId)`
+Auto-collects bounty. Batch: `executeBatched(uint256[] ids)`.
+Allow-failure variant: `executeBatchedAllowFailure(uint256[] ids)` — skips invalid harvests.
+
+**collect** — `executeTyped(uint256 harvestId)`
+Partial collection, harvest continues. Batch: `executeBatched(uint256[] ids)`.
+Allow-failure variant: `executeBatchedAllowFailure(uint256[] ids)`.
+
+**liquidate** — `executeTyped(uint256 victimHarvID, uint256 killerID)`
+**Gas limit: 7,500,000 required.** Both Kamis must be harvesting on the same node.
+
+### Gas Notes
+
+- Start/stop/collect: default gas limit is fine
+- Liquidate: hardcode `gasLimit: 7_500_000` — complex PvP logic
+- Gas price is flat `0.0025 gwei`, cost is negligible
+
+Full details: [integration/api/harvesting.md](../integration/api/harvesting.md)
