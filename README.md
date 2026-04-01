@@ -139,6 +139,13 @@ accounts. Reads the roster, perceives all accounts, then executes
 portfolio-level plans that coordinate work across accounts.
 See [systems/memory.md](systems/memory.md).
 
+### Strategies (calibrated wisdom)
+Proven decision heuristics learned through gameplay and human review. Committed
+to the repo — shared across agent instances. Read `strategies/INDEX.md` before
+planning. Insights flow from the decision log through the calibration loop:
+agent plays, founder reviews, confirmed patterns get promoted to `strategies/`.
+See [strategies/README.md](strategies/README.md).
+
 ### Factions & Reputation
 Three factions: Agency, Elders (Mina), Nursery. Reputation gained via quest
 rewards (2/4/6 per quest). Tracked as leaderboard scores.
@@ -235,3 +242,5 @@ On each agent decision cycle, evaluate in priority order:
 | [systems/accounts.md](systems/accounts.md) | Stats, stamina, cooldowns, owner/operator wallets |
 | [systems/state-reading.md](systems/state-reading.md) | On-chain queries, HP/stamina projection, perception loop |
 | [systems/memory.md](systems/memory.md) | Agent memory schema, plan hierarchy, session lifecycle |
+| [strategies/README.md](strategies/README.md) | Calibrated decision heuristics from gameplay |
+| [strategies/INDEX.md](strategies/INDEX.md) | Strategy index by topic (harvesting, builds, economy, coordination) |

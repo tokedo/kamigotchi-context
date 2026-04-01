@@ -15,10 +15,10 @@
                                                                                                                         
   ## Source of Truth
 
-  **For the playing agent**: this repo's `systems/` and `catalogs/` files are
-  the complete source of truth. The agent should never need to read external
-  repos — all decision-relevant mechanics, formulas, and thresholds are
-  distilled here.
+  **For the playing agent**: this repo's `systems/`, `catalogs/`, and
+  `strategies/` files are the complete source of truth. The agent should never
+  need to read external repos — all decision-relevant mechanics, formulas,
+  thresholds, and calibrated heuristics are distilled here.
 
   **For the context builder** (you, when updating this repo):
   - **GDD repo**: [`kamigotchi-gdd`](https://github.com/tokedo/kamigotchi-gdd) — raw mechanics, formulas, source citations
@@ -34,9 +34,31 @@
   5. **Self-contained**: all decision-relevant formulas must be present in this repo. Never link to external repos for formulas — the playing agent only reads files in this repo
   6. **State-aware**: describe what game state the agent should check before acting
   7. README.md is the entry point — it must fit in ~2-3 pages and link to everything
-  8. System files go in `systems/`, catalogs in `catalogs/`, strategy guides in `strategies/`
+  8. System files go in `systems/`, catalogs in `catalogs/`, strategy files in `strategies/`
   9. Mark any uncertain decision heuristics with `> HEURISTIC:` — needs playtesting
   10. Catalogs are CSV with a comment header explaining key columns and decision relevance
+
+  ## Strategy Promotion
+
+  Strategy files in `strategies/` capture proven decision patterns from the
+  calibration loop (see [systems/memory.md](systems/memory.md)).
+
+  **When to promote**: a decision pattern from `memory/decisions.md` generalizes
+  beyond its specific situation AND has been confirmed by human review.
+
+  **What a strategy file contains**:
+  - The decision pattern — conditional, terse ("if X, then Y")
+  - Why it works — the game mechanic reasoning behind it
+  - When to apply — the conditions that trigger this pattern
+  - When NOT to apply — edge cases, exceptions, changed assumptions
+
+  **Confidence markers**:
+  - `> CALIBRATED: confirmed by human review on <YYYY-MM-DD>` — tested and validated
+  - `> CANDIDATE: proposed on <YYYY-MM-DD>, awaiting review` — agent-proposed, not yet confirmed
+
+  Keep the same writing style as `systems/` files: terse, conditional,
+  quantitative. No narrative. Update `strategies/INDEX.md` whenever a strategy
+  file is added or updated.
 
   ## Integration Layer
 
@@ -75,9 +97,10 @@
 
   On session start, always read:
   1. `systems/memory.md` — understand the memory schema
-  2. `memory/accounts/INDEX.md` — account roster (labels, roles, wallets)
-  3. `memory/accounts/<label>.md` — per-account snapshots
-  4. `memory/plans/INDEX.md` — current plan tree (portfolio → strategic → tactical → routine)
+  2. `strategies/INDEX.md` — calibrated decision patterns (read before planning)
+  3. `memory/accounts/INDEX.md` — account roster (labels, roles, wallets)
+  4. `memory/accounts/<label>.md` — per-account snapshots
+  5. `memory/plans/INDEX.md` — current plan tree (portfolio → strategic → tactical → routine)
 
   If `memory/` is empty or missing, this is a cold start — perceive all
   accounts, assign roles, and run a plan revision session to initialize.

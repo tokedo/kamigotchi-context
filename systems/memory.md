@@ -313,6 +313,40 @@ multiple crafting cycles.
 Related plan: plan-iron-bars-50
 ```
 
+## Calibration Loop
+
+Insights flow from ephemeral decision logs into permanent strategy files:
+
+```
+memory/decisions.md  →  founder review  →  strategies/<topic>.md
+(per-instance)          (human in loop)     (committed, shared)
+```
+
+### During plan revision sessions
+
+When reviewing the decision log, look for patterns that **generalize** beyond
+the specific situation:
+
+- A decision that worked well and would apply to similar future situations
+- A mistake that reveals a non-obvious constraint
+- A heuristic that was tested and proved right (or wrong)
+
+If the founder has confirmed a pattern (through feedback during the session or
+explicit review), promote it:
+
+1. Write a strategy file in `strategies/` (or append to an existing topic file)
+2. Mark it `> CALIBRATED: confirmed by human review on <date>`
+3. Update `strategies/INDEX.md`
+
+If the agent identifies a pattern but the founder hasn't reviewed it yet:
+
+1. Write the strategy file with `> CANDIDATE: proposed on <date>, awaiting review`
+2. Update `strategies/INDEX.md`
+3. The founder will confirm, reject, or refine in a future session
+
+**The distinction**: `memory/` is "what happened and why in this instance."
+`strategies/` is "what we learned that applies generally."
+
 ## Plan Revision Triggers
 
 Enter a plan revision session (update plans only, no game actions) when:
@@ -349,24 +383,25 @@ Every agent session follows this flow:
 
 ```
  1. READ  systems/memory.md              <- understand the schema (you're here)
- 2. READ  memory/accounts/INDEX.md       <- who do I manage, roles, resource pool
- 3. READ  memory/accounts/<label>.md     <- snapshot for each account
- 4. READ  memory/plans/INDEX.md          <- what am I working on
- 5. PERCEIVE on-chain state              <- RPC calls for ALL accounts (see systems/state-reading.md)
- 6. UPDATE memory/accounts/<label>.md    <- reconcile each account's cache with reality
- 7. CHECK plan revision triggers         <- if triggered, do revision session
- 8. EVALUATE portfolio plans             <- cross-account priorities first
- 9. EXECUTE plans                        <- per-account routines, advance tactical goals
-10. LOG key decisions                    <- append to memory/decisions.md (tag accounts)
-11. UPDATE plan statuses, INDEX.md       <- reflect progress
+ 2. READ  strategies/INDEX.md            <- calibrated decision patterns (read before planning)
+ 3. READ  memory/accounts/INDEX.md       <- who do I manage, roles, resource pool
+ 4. READ  memory/accounts/<label>.md     <- snapshot for each account
+ 5. READ  memory/plans/INDEX.md          <- what am I working on
+ 6. PERCEIVE on-chain state              <- RPC calls for ALL accounts (see systems/state-reading.md)
+ 7. UPDATE memory/accounts/<label>.md    <- reconcile each account's cache with reality
+ 8. CHECK plan revision triggers         <- if triggered, do revision session
+ 9. EVALUATE portfolio plans             <- cross-account priorities first
+10. EXECUTE plans                        <- per-account routines, advance tactical goals
+11. LOG key decisions                    <- append to memory/decisions.md (tag accounts)
+12. UPDATE plan statuses, INDEX.md       <- reflect progress
 ```
 
 **Perception order**: perceive all accounts before acting on any. The agent
 needs the full picture to make portfolio-level decisions (e.g., "alpha finished
 farming — time to trigger charlie's crafting").
 
-If `memory/` is empty (cold start): skip steps 2–4, go straight to step 5
-(perceive all accounts), then run a full plan revision to initialize.
+If `memory/` is empty (cold start): read strategies (step 2), then skip to
+step 6 (perceive all accounts), then run a full plan revision to initialize.
 
 ## Initialization (Cold Start)
 
