@@ -2,7 +2,7 @@
 
 Decision-oriented context for an AI agent playing Kamigotchi — a pure on-chain
 MMORPG on Yominet. For full formulas and source citations, see the GDD at
-`~/kamigotchi-gdd`.
+[`kamigotchi-gdd`](https://github.com/tokedo/kamigotchi-gdd).
 
 ## Core Loop
 

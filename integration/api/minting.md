@@ -1,6 +1,6 @@
 > **Doc Class:** Core Resource
 > **Canonical Source:** Kamigotchi on-chain contracts on Yominet and the official repository (`Asphodel-OS/kamigotchi`).
-> **Freshness Rule:** Verify mutable values against canonical sources before merge and record updates in `resources/references/data-provenance.md`.
+> **Freshness Rule:** Verify mutable values against canonical sources before merge.
 
 # Gacha / Minting
 
@@ -238,7 +238,7 @@ console.log("Gacha ticket purchased via auction!");
 | Same-block reveal | Called `reveal()` in the same block as `mint()` | Wait at least 1 block (~2 seconds on Yominet) |
 | Insufficient MUSU | Cannot afford gacha ticket at current GDA price | Earn MUSU via harvesting, then retry |
 
-See [Common Errors](../references/common-errors.md) for the full error reference.
+See [Common Errors](../errors.md) for the full error reference.
 
 ---
 

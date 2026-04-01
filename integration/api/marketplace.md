@@ -1,6 +1,6 @@
 > **Doc Class:** Core Resource
 > **Canonical Source:** Kamigotchi on-chain contracts on Yominet and the official repository (`Asphodel-OS/kamigotchi`).
-> **Freshness Rule:** Verify mutable values against canonical sources before merge and record updates in `resources/references/data-provenance.md`.
+> **Freshness Rule:** Verify mutable values against canonical sources before merge.
 
 # KamiSwap — Kami Marketplace
 
@@ -56,7 +56,7 @@ There is also an **admin-only** registry system (`system.kamimarket.registry`) f
 > const vaultAddress = ethers.getAddress(ethers.toBeHex(vaultRaw, 20));
 > ```
 >
-> See [Reading On-Chain Components](../contracts/ids-and-abis.md#reading-on-chain-components) for the full `getComponentAddress()` helper.
+> See [Reading On-Chain Components](../system-ids.md#reading-on-chain-components) for the full `getComponentAddress()` helper.
 
 ### Fee Structure
 
@@ -114,7 +114,7 @@ const offerId = extractEntityIds(offerReceipt)[0];
 console.log("Offer entity ID:", offerId);
 ```
 
-See [Parsing Transaction Events](entity-discovery.md#parsing-transaction-events) for the full `extractEntityIds()` helper and event parsing details.
+See [Parsing Transaction Events](../entity-ids.md#parsing-transaction-events) for the full `extractEntityIds()` helper and event parsing details.
 
 ---
 
@@ -180,7 +180,7 @@ await tx.wait();
 console.log("Kamis purchased!");
 ```
 
-> **How to find listing IDs:** Listing IDs are non-deterministic and cannot be derived. To discover active listings, either: (1) parse `Store_SetRecord` events from listing transactions (see [Parsing Transaction Events](entity-discovery.md#parsing-transaction-events)), or (2) query the [Kamiden Indexer](indexer.md) via `GetKamiMarketListings({ Size: 500 })` — this is the recommended approach for bots. There is no on-chain function to enumerate all active listings.
+> **How to find listing IDs:** Listing IDs are non-deterministic and cannot be derived. To discover active listings, either: (1) parse `Store_SetRecord` events from listing transactions (see [Parsing Transaction Events](../entity-ids.md#parsing-transaction-events)), or (2) query the [Kamiden Indexer](indexer.md) via `GetKamiMarketListings({ Size: 500 })` — this is the recommended approach for bots. There is no on-chain function to enumerate all active listings.
 
 **What happens on buy:**
 1. Verifies all listings are active, not expired, and buyer doesn't own them
@@ -221,7 +221,7 @@ Offers use **WETH** (not native ETH). Before making offers, the buyer must appro
 > const weth = new ethers.Contract(WETH_ADDRESS, ["function deposit() payable"], ownerSigner);
 > await (await weth.deposit({ value: ethers.parseEther("0.1") })).wait();
 > ```
-> See [Chain Configuration — WETH](../chain-configuration.md#weth-wrapped-eth) for details.
+> See [Chain Configuration — WETH](../chain.md#weth-wrapped-eth) for details.
 
 ```javascript
 const WETH_ADDRESS = "0xE1Ff7038eAAAF027031688E1535a055B2Bac2546";
@@ -239,7 +239,7 @@ await approveTx.wait();
 console.log("WETH approved:", ethers.formatEther(maxOfferSpend), "WETH");
 ```
 
-> **Note:** On Yominet, bridge ETH first for gas and native-ETH listing buys. When you need approval-based flows such as offers, wrap that ETH through the local WETH contract at `0xE1Ff...2546`. See [Chain Configuration](../chain-configuration.md) for bridging and wrapping details. Prefer exact/limited approvals and top up as needed.
+> **Note:** On Yominet, bridge ETH first for gas and native-ETH listing buys. When you need approval-based flows such as offers, wrap that ETH through the local WETH contract at `0xE1Ff...2546`. See [Chain Configuration](../chain.md) for bridging and wrapping details. Prefer exact/limited approvals and top up as needed.
 
 > **Wallet note:** Offers are *created* by the **Operator** wallet, but when an offer is accepted, WETH is pulled from the **Owner** wallet via the vault. Approve WETH from your Owner wallet (as shown above), then create offers from your Operator wallet.
 
@@ -341,7 +341,7 @@ await tx.wait();
 console.log("Batch accepted — 3 Kamis sold!");
 ```
 
-> **How to find offer IDs:** Offer IDs are non-deterministic. To discover offers on your Kamis, either: (1) parse `Store_SetRecord` events from offer transactions, or (2) query an off-chain indexer. See [Parsing Transaction Events](entity-discovery.md#parsing-transaction-events).
+> **How to find offer IDs:** Offer IDs are non-deterministic. To discover offers on your Kamis, either: (1) parse `Store_SetRecord` events from offer transactions, or (2) query an off-chain indexer. See [Parsing Transaction Events](../entity-ids.md#parsing-transaction-events).
 
 **What happens on accept:**
 1. Verifies offer is active, not expired, and seller doesn't own the offer
@@ -597,9 +597,9 @@ console.log("Kami purchased from Newbie Vendor!");
 
 ## Related Pages
 
-- [Entity Discovery](entity-discovery.md) — How to find order entity IDs
+- [Entity Discovery](../entity-ids.md) — How to find order entity IDs
 - [Portal (ERC721 / ERC20)](portal.md) — Staking and unstaking Kami NFTs
 - [Gacha / Minting](minting.md) — Minting new Kamis via the gacha system
 - [Trading](trading.md) — Player-to-player item trades
-- [Game Data Reference](../references/game-data.md) — WETH address, fee config, cooldown values
-- [System IDs & ABIs](../contracts/ids-and-abis.md) — Complete system reference
+- [Game Data Reference](../game-data.md) — WETH address, fee config, cooldown values
+- [System IDs & ABIs](../system-ids.md) — Complete system reference

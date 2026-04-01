@@ -1,5 +1,5 @@
 > **Doc Class:** Agent Guidance
-> **Canonical Source:** Derived from Core Resources in this repo and canonical sources listed in `resources/references/data-provenance.md`.
+> **Canonical Source:** Derived from Core Resources and on-chain canonical sources.
 > **Freshness Rule:** Do not become source-of-truth for canonical values; link back to Core Resources for addresses, IDs, and tables.
 
 # Integration Guide
@@ -32,7 +32,7 @@ If you want the shortest first-run path for a new bot developer, start with [Age
 Use one of these bot-oriented paths:
 
 1. **Base agent bootstrap route** — Use [Yominet Bridge Tooling](tools/yominet-bridge/README.md) if your agent starts from a single owner key funded on Base.
-2. **External funding route** — If you are not using the bootstrap route, fund the owner wallet through an external route you control before running these scripts. For current network details, see [Chain Configuration](../resources/chain-configuration.md).
+2. **External funding route** — If you are not using the bootstrap route, fund the owner wallet through an external route you control before running these scripts. For current network details, see [Chain Configuration](chain.md).
 
 **Cost summary:**
 
@@ -293,13 +293,13 @@ After registering, you need at least one Kami to participate in gameplay (harves
 
 The **KamiSwap** marketplace lets players buy Kamis listed by other players. This is the simplest way to get your first Kami — browse available listings and purchase one with native ETH.
 
-See [KamiSwap — Marketplace](../resources/player-api/marketplace.md) for full details on browsing listings, buying, and making offers.
+See [KamiSwap — Marketplace](api/marketplace.md) for full details on browsing listings, buying, and making offers.
 
-> **Finding your Kami after purchase:** Use `IDOwnsKamiComponent` to list your Kamis, or scan `getKamiByIndex()` (as shown in the [Complete Example](#complete-example-script) below). See [Entity Discovery — Enumerating Your Kamis](../resources/player-api/entity-discovery.md#enumerating-your-kamis) for the component-based approach.
+> **Finding your Kami after purchase:** Use `IDOwnsKamiComponent` to list your Kamis, or scan `getKamiByIndex()` (as shown in the [Complete Example](#complete-example-script) below). See [Entity Discovery — Enumerating Your Kamis](entity-ids.md#enumerating-your-kamis) for the component-based approach.
 
 #### Pull Active Listings from Kamiden
 
-Programmatic bots should query the Kamiden indexer before buying. Follow the proto setup in [Kamiden Indexer](../resources/player-api/indexer.md#connecting-from-nodejs), then fetch current listings:
+Programmatic bots should query the Kamiden indexer before buying. Follow the proto setup in [Kamiden Indexer](api/indexer.md#connecting-from-nodejs), then fetch current listings:
 
 ```typescript
 import { createChannel, createClient } from "nice-grpc-web";
@@ -347,7 +347,7 @@ console.log(`Purchased Kami #${selected.KamiIndex}`);
 
 Another player can send you a Kami using `system.kami.send`. The Kami arrives in your account automatically — no staking required. There is a **60-minute cooldown** after receiving a Kami before you can use it in gameplay.
 
-See [Trading](../resources/player-api/trading.md) for direct player-to-player item trades.
+See [Trading](api/trading.md) for direct player-to-player item trades.
 
 ---
 
@@ -425,7 +425,7 @@ console.log("Kami leveled up!");
 
 ```javascript
 // Full ABI with struct fields — required for ethers.js to decode return values.
-// See resources/contracts/ids-and-abis.md -> Getter System for the complete reference.
+// See system-ids.md -> Getter System for the complete reference.
 const GETTER_ABI = [
   "function getKami(uint256 kamiId) view returns (tuple(uint256 id, uint32 index, string name, string mediaURI, tuple(tuple(int32 base, int32 shift, int32 boost, int32 sync) health, tuple(int32 base, int32 shift, int32 boost, int32 sync) power, tuple(int32 base, int32 shift, int32 boost, int32 sync) harmony, tuple(int32 base, int32 shift, int32 boost, int32 sync) violence) stats, tuple(uint32 face, uint32 hand, uint32 body, uint32 background, uint32 color) traits, string[] affinities, uint256 account, uint256 level, uint256 xp, uint32 room, string state))",
   "function getAccount(uint256 accountId) view returns (tuple(uint32 index, string name, int32 currStamina, uint32 room))",
@@ -445,9 +445,9 @@ console.log("Kami data:", kamiData);
 
 Now that you've registered, set up wallets, and can call systems — you'll need to work with **entity IDs** for real gameplay. Entity IDs are how Kamigotchi identifies everything: your account, your Kamis, active harvests, trades, and quests.
 
-👉 **[Entity Discovery](../resources/player-api/entity-discovery.md)** — Learn how to derive and find all the entity IDs you need, with a complete helper library.
+👉 **[Entity Discovery](entity-ids.md)** — Learn how to derive and find all the entity IDs you need, with a complete helper library.
 
-👉 **[Game Data Reference](../resources/references/game-data.md)** — Lookup tables for item indices, room indices, skill trees, quest chains, and harvest node data.
+👉 **[Game Data Reference](game-data.md)** — Lookup tables for item indices, room indices, skill trees, quest chains, and harvest node data.
 
 ---
 
@@ -462,7 +462,7 @@ A single end-to-end script that takes a fresh wallet through the full first-run 
 //   npm init -y
 //   npm install ethers nice-grpc-web @bufbuild/protobuf tsx
 //   npm pkg set type=module
-//   Copy ./proto.ts from the official client as shown in resources/player-api/indexer.md
+//   Copy ./proto.ts from the official client as shown in api/indexer.md
 //   export OWNER_PRIVATE_KEY=0x...
 //   export OPERATOR_PRIVATE_KEY=0x...
 //   export KAMI_ACCOUNT_NAME=MyBot01
@@ -727,7 +727,7 @@ async function main() {
   // ----------------------------------------------------------
   // Use the component.id.kami.owns component to find all Kamis owned by this
   // account. This is O(1) on-chain — no brute-force scanning required.
-  // See: resources/player-api/entity-discovery.md and resources/contracts/ids-and-abis.md
+  // See: entity-ids.md and system-ids.md
 
   // Resolve a component address from the World's component registry.
   // Components resolve via world.components(), NOT world.systems().
@@ -979,12 +979,12 @@ async function sendWithRetry(system, method, args, overrides = {}) {
 
 ## Next Steps
 
-> 📖 **Read next: [Entity Discovery](../resources/player-api/entity-discovery.md)** — Understanding how to derive entity IDs is essential for reading game state, building queries, and calling most systems. Read this before diving into individual API pages.
+> 📖 **Read next: [Entity Discovery](entity-ids.md)** — Understanding how to derive entity IDs is essential for reading game state, building queries, and calling most systems. Read this before diving into individual API pages.
 
-1. **Explore the API** — Browse the [Player API pages](../resources/player-api/overview.md) for full function documentation
-2. **Check contracts** — See [Live Addresses](../resources/contracts/live-addresses.md) and [System IDs](../resources/contracts/ids-and-abis.md)
-3. **Understand the chain** — Review [Chain Configuration](../resources/chain-configuration.md) for network details
-4. **Read the architecture** — [Architecture Overview](../resources/architecture.md) explains the MUD ECS model
+1. **Explore the API** — Browse the [Player API pages](sdk-setup.md) for full function documentation
+2. **Check contracts** — See [Live Addresses](addresses.md) and [System IDs](system-ids.md)
+3. **Understand the chain** — Review [Chain Configuration](chain.md) for network details
+4. **Read the architecture** — [Architecture Overview](architecture.md) explains the MUD ECS model
 
 ---
 

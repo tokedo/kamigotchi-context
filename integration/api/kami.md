@@ -1,6 +1,6 @@
 > **Doc Class:** Core Resource
 > **Canonical Source:** Kamigotchi on-chain contracts on Yominet and the official repository (`Asphodel-OS/kamigotchi`).
-> **Freshness Rule:** Verify mutable values against canonical sources before merge and record updates in `resources/references/data-provenance.md`.
+> **Freshness Rule:** Verify mutable values against canonical sources before merge.
 
 # Kami
 
@@ -214,7 +214,7 @@ await tx.wait();
 - **Capacity limit:** Each entity has a default equipment capacity of **1** total equipped item (across all slots), expandable via the `EQUIP_CAPACITY_SHIFT` bonus. Adding new equipment (not replacing) checks capacity — replacing an item in the same slot does not count as adding.
 - **Kami state requirement:** The Kami must be in `"RESTING"` state to equip items. Harvesting or dead Kamis cannot be equipped.
 - **Item consumed:** The item is consumed from your account's inventory when equipped, and returned when unequipped.
-- Equipment slot types use the format `"{EntityType}_{SlotName}_Slot"` — e.g., `"Kami_Pet_Slot"`, `"Account_Badge_Slot"`. Currently all equipment items in the game use the `Kami_Pet_Slot`. See [Equipment Reference](../references/game-data.md#equipment) for the full list.
+- Equipment slot types use the format `"{EntityType}_{SlotName}_Slot"` — e.g., `"Kami_Pet_Slot"`, `"Account_Badge_Slot"`. Currently all equipment items in the game use the `Kami_Pet_Slot`. See [Equipment Reference](../game-data.md#equipment) for the full list.
 
 ---
 

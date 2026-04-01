@@ -1,6 +1,6 @@
 > **Doc Class:** Core Resource
 > **Canonical Source:** Kamigotchi on-chain contracts on Yominet and the official repository (`Asphodel-OS/kamigotchi`).
-> **Freshness Rule:** Verify mutable values against canonical sources before merge and record updates in `resources/references/data-provenance.md`.
+> **Freshness Rule:** Verify mutable values against canonical sources before merge.
 
 # Chain Configuration
 
@@ -94,14 +94,14 @@ The [Initia Bridge](https://app.initia.xyz/?openBridge=true) supports bridging E
 
 ### Option 3: Base Agent Bootstrap Route
 
-For agent flows that start with only ETH on Base, use the working bridge tooling in [Yominet Bridge Tooling](../guidance/tools/yominet-bridge/README.md). The only user-facing bridge inputs are the owner private key and bridge amount; the runtime derives the Yominet recipients from that key.
+For agent flows that start with only ETH on Base, use the working bridge tooling in the Yominet bridge tooling. The only user-facing bridge inputs are the owner private key and bridge amount; the runtime derives the Yominet recipients from that key.
 
 ### Recommended Funding Amounts
 
 For a new player, bridge **0.01 ETH**. Gas is extremely cheap (~0.001 ETH for thousands of transactions). The main ETH costs are:
 
-- **KamiSwap purchases** — buying your first Kami on the [KamiSwap marketplace](player-api/marketplace.md) (paid in native ETH via `msg.value`)
-- **Gacha tickets** — purchased with $MUSU via Dutch auction (see [Gacha / Minting](player-api/minting.md))
+- **KamiSwap purchases** — buying your first Kami on the [KamiSwap marketplace](api/marketplace.md) (paid in native ETH via `msg.value`)
+- **Gacha tickets** — purchased with $MUSU via Dutch auction (see [Gacha / Minting](api/minting.md))
 
 ---
 
@@ -180,7 +180,7 @@ $MUSU is the **primary in-game currency** (item index 1). It is **not** an ERC-2
 - Used to purchase gacha tickets (via Dutch auction)
 - Used in KWOB (Kamigotchi World Order Book) — the player-to-player trading system
 
-> **Note:** $MUSU cannot be transferred on-chain as a token. It can only be traded between players using the in-game [Trading](player-api/trading.md) system.
+> **Note:** $MUSU cannot be transferred on-chain as a token. It can only be traded between players using the in-game [Trading](api/trading.md) system.
 
 ---
 
@@ -203,13 +203,13 @@ $ONYX is the in-game ERC-20 token used for premium operations.
 ### Acquiring $ONYX
 
 - **Trading on Baseline Markets** — $ONYX can be bought and sold on [Baseline Markets](https://legacy.baseline.markets). Search for the ONYX token on Yominet.
-- **Player-to-player trading** — Use the in-game [Trading](player-api/trading.md) system to exchange items or $MUSU for $ONYX with other players.
+- **Player-to-player trading** — Use the in-game [Trading](api/trading.md) system to exchange items or $MUSU for $ONYX with other players.
 
 ---
 
 ## Onyx Shards
 
-**Onyx Shards** (item index 100) are the in-game form of $ONYX. When $ONYX (ERC-20) is deposited into the game via the [ERC20 Portal](player-api/portal.md), it converts to Onyx Shards at a rate of **1 ONYX = 100 Onyx Shards**. Conversely, withdrawing Onyx Shards via the portal converts them back to $ONYX at the same rate. Onyx Shards can also be obtained through gameplay activities (e.g., trading with other players).
+**Onyx Shards** (item index 100) are the in-game form of $ONYX. When $ONYX (ERC-20) is deposited into the game via the [ERC20 Portal](api/portal.md), it converts to Onyx Shards at a rate of **1 ONYX = 100 Onyx Shards**. Conversely, withdrawing Onyx Shards via the portal converts them back to $ONYX at the same rate. Onyx Shards can also be obtained through gameplay activities (e.g., trading with other players).
 
 ---
 
@@ -278,7 +278,7 @@ wsProvider.on(
 );
 ```
 
-> **Tip:** WebSocket connections may drop under load. Always implement reconnection logic. For high-reliability setups, consider polling via HTTP RPC as a fallback. See [Entity Discovery](player-api/entity-discovery.md) for details on decoding entity IDs from event logs.
+> **Tip:** WebSocket connections may drop under load. Always implement reconnection logic. For high-reliability setups, consider polling via HTTP RPC as a fallback. See [Entity Discovery](entity-ids.md) for details on decoding entity IDs from event logs.
 
 ---
 
@@ -296,5 +296,5 @@ wsProvider.on(
 ## Related Pages
 
 - [Architecture Overview](architecture.md) — How the MUD ECS model works
-- [Live Addresses](contracts/live-addresses.md) — All deployed contract addresses
-- [Integration Guide](../guidance/integration-guide.md) — Getting started for developers
+- [Live Addresses](addresses.md) — All deployed contract addresses
+- [Integration Guide](guide.md) — Getting started for developers

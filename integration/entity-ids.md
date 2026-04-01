@@ -1,6 +1,6 @@
 > **Doc Class:** Core Resource
 > **Canonical Source:** Kamigotchi on-chain contracts on Yominet and the official repository (`Asphodel-OS/kamigotchi`).
-> **Freshness Rule:** Verify mutable values against canonical sources before merge and record updates in `resources/references/data-provenance.md`.
+> **Freshness Rule:** Verify mutable values against canonical sources before merge .
 
 # Entity Discovery
 
@@ -203,7 +203,7 @@ for (const kamiId of myKamiIds) {
 const myKamiEntityId = myKamiIds[0];
 ```
 
-See [Reading On-Chain Components](../contracts/ids-and-abis.md#reading-on-chain-components) for the `getComponentAddress()` helper.
+See [Reading On-Chain Components](system-ids.md#reading-on-chain-components) for the `getComponentAddress()` helper.
 
 ---
 
@@ -895,6 +895,6 @@ for (const eqId of equipIds) {
 
 ## See Also
 
-- [Game Data Reference](../references/game-data.md) — Lookup tables for item, room, node, skill, and quest indices
-- [Overview & Setup](overview.md) — SDK setup and calling conventions
-- [Integration Guide](../../guidance/integration-guide.md) — Step-by-step walkthrough
+- [Game Data Reference](game-data.md) — Lookup tables for item, room, node, skill, and quest indices
+- [Overview & Setup](sdk-setup.md) — SDK setup and calling conventions
+- [Integration Guide](guide.md) — Step-by-step walkthrough

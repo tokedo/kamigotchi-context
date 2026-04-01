@@ -1,6 +1,6 @@
 > **Doc Class:** Core Resource
 > **Canonical Source:** Kamigotchi on-chain contracts on Yominet and the official repository (`Asphodel-OS/kamigotchi`).
-> **Freshness Rule:** Verify mutable values against canonical sources before merge and record updates in `resources/references/data-provenance.md`.
+> **Freshness Rule:** Verify mutable values against canonical sources before merge.
 
 # Live Contract Addresses
 
@@ -68,7 +68,7 @@ console.log("KamiLevelSystem:", levelSystemAddr);
 
 > **Note:** Token contracts (WETH, ONYX, Kami721) have **fixed addresses** listed in the table above — they do not need dynamic resolution. Only system contracts require the resolver pattern shown here.
 
-> For the full resolver with legacy fallback support, see the [Integration Guide](../../guidance/integration-guide.md).
+> For the full resolver with legacy fallback support, see the [Integration Guide](guide.md).
 
 ### Why Dynamic Resolution?
 
@@ -131,6 +131,6 @@ const kami721 = new ethers.Contract(
 
 ## Related Pages
 
-- [System IDs & ABIs](ids-and-abis.md) — All system identifiers
-- [Chain Configuration](../chain-configuration.md) — Network details
+- [System IDs & ABIs](system-ids.md) — All system identifiers
+- [Chain Configuration](chain.md) — Network details
 - [Architecture Overview](../architecture.md) — How contracts interact

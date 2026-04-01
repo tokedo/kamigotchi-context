@@ -4,8 +4,8 @@
    
   This repo contains **decision-oriented game context** for AI agents that play                                         
   Kamigotchi — a pure on-chain MMORPG on Yominet. It is Layer 2b of the
-  documentation pipeline, distilled from the technical GDD at                                                           
-  `~/kamigotchi-gdd`.                                                                                                   
+  documentation pipeline, distilled from the technical GDD at
+  [`kamigotchi-gdd`](https://github.com/tokedo/kamigotchi-gdd).                                                                                                   
                                                                                                                         
   ## Your Role                                                                                                          
                                                                                                                         
@@ -14,7 +14,7 @@
                                                                                                                         
   ## Source of Truth                                              
                                                                                                                         
-  - **GDD repo (Layer 1)**: `~/kamigotchi-gdd` — mechanics, formulas, catalogs                                          
+  - **GDD repo (Layer 1)**: [`kamigotchi-gdd`](https://github.com/tokedo/kamigotchi-gdd) — mechanics, formulas, catalogs                                          
   - **Game source code**: `https://github.com/Asphodel-OS/kamigotchi`
   - When in doubt, read the GDD mechanic file for the exact formula.                                                    
                                                                                                                         

@@ -1,6 +1,6 @@
 > **Doc Class:** Core Resource
 > **Canonical Source:** Kamigotchi on-chain contracts on Yominet and the official repository (`Asphodel-OS/kamigotchi`).
-> **Freshness Rule:** Verify mutable values against canonical sources before merge and record updates in `resources/references/data-provenance.md`.
+> **Freshness Rule:** Verify mutable values against canonical sources before merge.
 
 # Portal (ERC721 / ERC20)
 
@@ -434,7 +434,7 @@ console.log("Withdrawal receipt ID:", receiptId);
 // Use this receiptId with claim() or cancel() after the pending period
 ```
 
-See [Parsing Transaction Events](entity-discovery.md#parsing-transaction-events) for the `extractEntityIds()` helper.
+See [Parsing Transaction Events](../entity-ids.md#parsing-transaction-events) for the `extractEntityIds()` helper.
 
 ---
 
@@ -544,5 +544,5 @@ console.log("Withdrawal cancelled — tokens returned to game inventory.");
 
 - [Kami](kami.md) — Managing staked Kamis
 - [Minting](minting.md) — Minting new Kamis via gacha
-- [Chain Configuration](../chain-configuration.md) — Network and token details
-- [Live Addresses](../contracts/live-addresses.md) — Contract addresses for approvals
+- [Chain Configuration](../chain.md) — Network and token details
+- [Live Addresses](../addresses.md) — Contract addresses for approvals

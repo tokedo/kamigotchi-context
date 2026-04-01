@@ -1,6 +1,6 @@
 > **Doc Class:** Core Resource
 > **Canonical Source:** Kamigotchi on-chain contracts on Yominet and the official repository (`Asphodel-OS/kamigotchi`).
-> **Freshness Rule:** Verify mutable values against canonical sources before merge and record updates in `resources/references/data-provenance.md`.
+> **Freshness Rule:** Verify mutable values against canonical sources before merge.
 
 # Echo
 
@@ -92,4 +92,4 @@ console.log("Room data re-emitted");
 
 - [Account — move()](account.md#move) — Moving between rooms
 - [Kami](kami.md) — Kami stat management
-- [Player API Overview](overview.md) — Setup and calling conventions
+- [Player API Overview](../sdk-setup.md) — Setup and calling conventions

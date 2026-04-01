@@ -1,6 +1,6 @@
 > **Doc Class:** Core Resource
 > **Canonical Source:** Kamigotchi on-chain contracts on Yominet and the official repository (`Asphodel-OS/kamigotchi`).
-> **Freshness Rule:** Verify mutable values against canonical sources before merge and record updates in `resources/references/data-provenance.md`.
+> **Freshness Rule:** Verify mutable values against canonical sources before merge.
 
 # Items & Crafting
 
@@ -225,7 +225,7 @@ console.log("Droptable items revealed!");
 ### Notes
 
 - Batch reveals are more gas-efficient.
-- The droptable IDs come from `Store_SetRecord` events emitted during harvest collection, quest completion, or sacrifice reveal. Parse the transaction receipt to extract them — see [Parsing Transaction Events](entity-discovery.md#parsing-transaction-events).
+- The droptable IDs come from `Store_SetRecord` events emitted during harvest collection, quest completion, or sacrifice reveal. Parse the transaction receipt to extract them — see [Parsing Transaction Events](../entity-ids.md#parsing-transaction-events).
 - Revealing uses on-chain randomness — items are determined at reveal time.
 
 ---

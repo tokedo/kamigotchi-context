@@ -1,6 +1,6 @@
 > **Doc Class:** Core Resource
 > **Canonical Source:** Kamigotchi on-chain contracts on Yominet and the official repository (`Asphodel-OS/kamigotchi`).
-> **Freshness Rule:** Verify mutable values against canonical sources before merge and record updates in `resources/references/data-provenance.md`.
+> **Freshness Rule:** Verify mutable values against canonical sources before merge.
 
 # System IDs & ABI References
 
@@ -14,110 +14,110 @@ Kamigotchi has **67 documented player-facing systems** in the World contract. Ea
 
 | System ID | Description | Wallet | Page |
 |-----------|-------------|--------|------|
-| `system.account.register` | Register a new account | Owner | [Account](../player-api/account.md) |
-| `system.account.move` | Move to a room | Operator | [Account](../player-api/account.md) |
-| `system.account.set.bio` | Set account bio | Operator | [Account](../player-api/account.md) |
-| `system.account.set.name` | Rename account | Owner | [Account](../player-api/account.md) |
-| `system.account.set.operator` | Update operator wallet | Owner | [Account](../player-api/account.md) |
-| `system.account.set.pfp` | Set profile picture | Operator | [Account](../player-api/account.md) |
-| `system.account.use.item` | Use item from inventory | Operator | [Items](../player-api/items-and-crafting.md) |
+| `system.account.register` | Register a new account | Owner | [Account](api/account.md) |
+| `system.account.move` | Move to a room | Operator | [Account](api/account.md) |
+| `system.account.set.bio` | Set account bio | Operator | [Account](api/account.md) |
+| `system.account.set.name` | Rename account | Owner | [Account](api/account.md) |
+| `system.account.set.operator` | Update operator wallet | Owner | [Account](api/account.md) |
+| `system.account.set.pfp` | Set profile picture | Operator | [Account](api/account.md) |
+| `system.account.use.item` | Use item from inventory | Operator | [Items](api/items-and-crafting.md) |
 
 ### Chat
 
 | System ID | Description | Wallet | Page |
 |-----------|-------------|--------|------|
-| `system.chat` | Send chat message | Operator | [Account](../player-api/account.md) |
+| `system.chat` | Send chat message | Operator | [Account](api/account.md) |
 
 ### Echo Systems
 
 | System ID | Description | Wallet | Page |
 |-----------|-------------|--------|------|
-| `system.echo.kamis` | Force-emit Kami data | Operator | [Echo](../player-api/echo.md) |
-| `system.echo.room` | Force-emit Room data | Operator | [Echo](../player-api/echo.md) |
+| `system.echo.kamis` | Force-emit Kami data | Operator | [Echo](api/echo.md) |
+| `system.echo.room` | Force-emit Room data | Operator | [Echo](api/echo.md) |
 
 ### Kami Systems
 
 | System ID | Description | Wallet | Page |
 |-----------|-------------|--------|------|
-| `system.kami.level` | Level up Kami | Operator | [Kami](../player-api/kami.md) |
-| `system.kami.name` | Name/rename Kami | Operator | [Kami](../player-api/kami.md) |
-| `system.kami.equip` | Equip item to Kami | Operator | [Kami](../player-api/kami.md) |
-| `system.kami.unequip` | Unequip item from Kami | Operator | [Kami](../player-api/kami.md) |
-| `system.kami.use.item` | Use item on Kami (feed) | Operator | [Kami](../player-api/kami.md) |
-| `system.kami.cast.item` | Cast item on enemy Kami | Operator | [Kami](../player-api/kami.md) |
-| `system.kami.sacrifice.commit` | Sacrifice Kami | Operator | [Kami](../player-api/kami.md) |
-| `system.kami.sacrifice.reveal` | Reveal sacrifice loot | Operator | [Kami](../player-api/kami.md) |
-| `system.kami.onyx.rename` | Rename Kami via ONYX (currently disabled) | Owner | [Kami](../player-api/kami.md) |
-| `system.kami.onyx.revive` | Revive dead Kami via ONYX | Operator | [Kami](../player-api/kami.md) |
-| `system.kami.onyx.respec` | Respec Kami via ONYX (currently disabled) | Owner | [Kami](../player-api/kami.md) |
-| `system.kami.send` | Send in-world Kami(s) to another player | Operator | [Kami](../player-api/kami.md) |
+| `system.kami.level` | Level up Kami | Operator | [Kami](api/kami.md) |
+| `system.kami.name` | Name/rename Kami | Operator | [Kami](api/kami.md) |
+| `system.kami.equip` | Equip item to Kami | Operator | [Kami](api/kami.md) |
+| `system.kami.unequip` | Unequip item from Kami | Operator | [Kami](api/kami.md) |
+| `system.kami.use.item` | Use item on Kami (feed) | Operator | [Kami](api/kami.md) |
+| `system.kami.cast.item` | Cast item on enemy Kami | Operator | [Kami](api/kami.md) |
+| `system.kami.sacrifice.commit` | Sacrifice Kami | Operator | [Kami](api/kami.md) |
+| `system.kami.sacrifice.reveal` | Reveal sacrifice loot | Operator | [Kami](api/kami.md) |
+| `system.kami.onyx.rename` | Rename Kami via ONYX (currently disabled) | Owner | [Kami](api/kami.md) |
+| `system.kami.onyx.revive` | Revive dead Kami via ONYX | Operator | [Kami](api/kami.md) |
+| `system.kami.onyx.respec` | Respec Kami via ONYX (currently disabled) | Owner | [Kami](api/kami.md) |
+| `system.kami.send` | Send in-world Kami(s) to another player | Operator | [Kami](api/kami.md) |
 
 ### Skill Systems
 
 | System ID | Description | Wallet | Page |
 |-----------|-------------|--------|------|
-| `system.skill.upgrade` | Upgrade Kami skill | Operator | [Skills](../player-api/skills-and-relationships.md) |
-| `system.skill.respec` | Reset Kami skills | Operator | [Skills](../player-api/skills-and-relationships.md) |
+| `system.skill.upgrade` | Upgrade Kami skill | Operator | [Skills](api/skills-and-relationships.md) |
+| `system.skill.respec` | Reset Kami skills | Operator | [Skills](api/skills-and-relationships.md) |
 
 ### Harvest Systems
 
 | System ID | Description | Wallet | Page |
 |-----------|-------------|--------|------|
-| `system.harvest.start` | Start harvesting | Operator | [Harvesting](../player-api/harvesting.md) |
-| `system.harvest.stop` | Stop harvesting | Operator | [Harvesting](../player-api/harvesting.md) |
-| `system.harvest.collect` | Collect harvest rewards | Operator | [Harvesting](../player-api/harvesting.md) |
-| `system.harvest.liquidate` | Liquidate harvest | Operator | [Harvesting](../player-api/harvesting.md) |
+| `system.harvest.start` | Start harvesting | Operator | [Harvesting](api/harvesting.md) |
+| `system.harvest.stop` | Stop harvesting | Operator | [Harvesting](api/harvesting.md) |
+| `system.harvest.collect` | Collect harvest rewards | Operator | [Harvesting](api/harvesting.md) |
+| `system.harvest.liquidate` | Liquidate harvest | Operator | [Harvesting](api/harvesting.md) |
 
 ### Item Systems
 
 | System ID | Description | Wallet | Page |
 |-----------|-------------|--------|------|
-| `system.item.burn` | Burn items | Operator | [Items](../player-api/items-and-crafting.md) |
-| `system.item.transfer` | Transfer items | Owner | [Items](../player-api/items-and-crafting.md) |
-| `system.craft` | Craft item from recipe | Operator | [Items](../player-api/items-and-crafting.md) |
-| `system.droptable.item.reveal` | Reveal droptable items | Any | [Items](../player-api/items-and-crafting.md) |
+| `system.item.burn` | Burn items | Operator | [Items](api/items-and-crafting.md) |
+| `system.item.transfer` | Transfer items | Owner | [Items](api/items-and-crafting.md) |
+| `system.craft` | Craft item from recipe | Operator | [Items](api/items-and-crafting.md) |
+| `system.droptable.item.reveal` | Reveal droptable items | Any | [Items](api/items-and-crafting.md) |
 
 ### Quest Systems
 
 | System ID | Description | Wallet | Page |
 |-----------|-------------|--------|------|
-| `system.quest.accept` | Accept a quest | Operator | [Quests](../player-api/quests.md) |
-| `system.quest.complete` | Complete a quest | Operator | [Quests](../player-api/quests.md) |
-| `system.quest.drop` | Drop an active quest | Operator | [Quests](../player-api/quests.md) |
+| `system.quest.accept` | Accept a quest | Operator | [Quests](api/quests.md) |
+| `system.quest.complete` | Complete a quest | Operator | [Quests](api/quests.md) |
+| `system.quest.drop` | Drop an active quest | Operator | [Quests](api/quests.md) |
 
 ### Trade Systems
 
 | System ID | Description | Wallet | Page |
 |-----------|-------------|--------|------|
-| `system.trade.create` | Create a trade | Owner | [Trading](../player-api/trading.md) |
-| `system.trade.execute` | Execute a trade (taker) | Owner | [Trading](../player-api/trading.md) |
-| `system.trade.complete` | Complete a trade (maker) | Owner | [Trading](../player-api/trading.md) |
-| `system.trade.cancel` | Cancel a trade (maker) | Owner | [Trading](../player-api/trading.md) |
+| `system.trade.create` | Create a trade | Owner | [Trading](api/trading.md) |
+| `system.trade.execute` | Execute a trade (taker) | Owner | [Trading](api/trading.md) |
+| `system.trade.complete` | Complete a trade (maker) | Owner | [Trading](api/trading.md) |
+| `system.trade.cancel` | Cancel a trade (maker) | Owner | [Trading](api/trading.md) |
 
 ### Social / Friend Systems
 
 | System ID | Description | Wallet | Page |
 |-----------|-------------|--------|------|
-| `system.friend.request` | Send friend request | Operator | [Social](../player-api/social.md) |
-| `system.friend.accept` | Accept friend request | Operator | [Social](../player-api/social.md) |
-| `system.friend.cancel` | Cancel/remove/unblock | Operator | [Social](../player-api/social.md) |
-| `system.friend.block` | Block an account | Operator | [Social](../player-api/social.md) |
+| `system.friend.request` | Send friend request | Operator | [Social](api/social.md) |
+| `system.friend.accept` | Accept friend request | Operator | [Social](api/social.md) |
+| `system.friend.cancel` | Cancel/remove/unblock | Operator | [Social](api/social.md) |
+| `system.friend.block` | Block an account | Operator | [Social](api/social.md) |
 
 ### Listing / Merchant Systems
 
 | System ID | Description | Wallet | Page |
 |-----------|-------------|--------|------|
-| `system.listing.buy` | Buy from NPC merchant | Operator | [Listings](../player-api/listings.md) |
-| `system.listing.sell` | Sell to NPC merchant | Operator | [Listings](../player-api/listings.md) |
+| `system.listing.buy` | Buy from NPC merchant | Operator | [Listings](api/listings.md) |
+| `system.listing.sell` | Sell to NPC merchant | Operator | [Listings](api/listings.md) |
 
 ### Gacha / Minting Systems
 
 | System ID | Description | Wallet | Page |
 |-----------|-------------|--------|------|
-| `system.kami.gacha.mint` | Mint Kami with gacha ticket | Owner | [Minting](../player-api/minting.md) |
-| `system.kami.gacha.reveal` | Reveal minted Kami | N/A | [Minting](../player-api/minting.md) |
-| `system.kami.gacha.reroll` | Reroll Kami | Owner | [Minting](../player-api/minting.md) |
-| `system.buy.gacha.ticket` | Buy gacha tickets (deprecated — use `system.auction.buy` instead) | Owner | [Minting](../player-api/minting.md) |
+| `system.kami.gacha.mint` | Mint Kami with gacha ticket | Owner | [Minting](api/minting.md) |
+| `system.kami.gacha.reveal` | Reveal minted Kami | N/A | [Minting](api/minting.md) |
+| `system.kami.gacha.reroll` | Reroll Kami | Owner | [Minting](api/minting.md) |
+| `system.buy.gacha.ticket` | Buy gacha tickets (deprecated — use `system.auction.buy` instead) | Owner | [Minting](api/minting.md) |
 
 ### Getter / View Systems
 
@@ -129,12 +129,12 @@ Kamigotchi has **67 documented player-facing systems** in the World contract. Ea
 
 | System ID | Description | Wallet | Page |
 |-----------|-------------|--------|------|
-| `system.kami721.stake` | Stake Kami NFT into game | Owner | [Portal](../player-api/portal.md) |
-| `system.kami721.unstake` | Unstake Kami NFT from game | Owner | [Portal](../player-api/portal.md) |
-| `system.kami721.transfer` | Transfer Kami NFT | Owner | [Portal](../player-api/portal.md) |
-| `system.Kami721.IsInWorld` | Check if Kami is in-world (view) | N/A | [Portal](../player-api/portal.md) |
-| `system.Kami721.Metadata` | Get Kami token URI metadata (view) | N/A | [Portal](../player-api/portal.md) |
-| `system.erc20.portal` | ERC20 deposit/withdraw | Owner | [Portal](../player-api/portal.md) |
+| `system.kami721.stake` | Stake Kami NFT into game | Owner | [Portal](api/portal.md) |
+| `system.kami721.unstake` | Unstake Kami NFT from game | Owner | [Portal](api/portal.md) |
+| `system.kami721.transfer` | Transfer Kami NFT | Owner | [Portal](api/portal.md) |
+| `system.Kami721.IsInWorld` | Check if Kami is in-world (view) | N/A | [Portal](api/portal.md) |
+| `system.Kami721.Metadata` | Get Kami token URI metadata (view) | N/A | [Portal](api/portal.md) |
+| `system.erc20.portal` | ERC20 deposit/withdraw | Owner | [Portal](api/portal.md) |
 
 > **IMPORTANT: Case-sensitive system IDs.** Most system IDs use lowercase dot notation (e.g., `system.account.register`). Two exceptions use **PascalCase**: `system.Kami721.IsInWorld` and `system.Kami721.Metadata`. Case is critical when hashing with `keccak256()` — a wrong case produces a different hash and the system will not resolve.
 
@@ -142,32 +142,32 @@ Kamigotchi has **67 documented player-facing systems** in the World contract. Ea
 
 | System ID | Description | Wallet | Page |
 |-----------|-------------|--------|------|
-| `system.relationship.advance` | Advance NPC relationship | Operator | [Skills & Relationships](../player-api/skills-and-relationships.md) |
+| `system.relationship.advance` | Advance NPC relationship | Operator | [Skills & Relationships](api/skills-and-relationships.md) |
 
 ### Goal & Scavenge Systems
 
 | System ID | Description | Wallet | Page |
 |-----------|-------------|--------|------|
-| `system.goal.contribute` | Contribute to goal | Operator | [Goals](../player-api/goals-and-scavenge.md) |
-| `system.goal.claim` | Claim goal reward | Operator | [Goals](../player-api/goals-and-scavenge.md) |
-| `system.scavenge.claim` | Claim scavenge points | Operator | [Goals](../player-api/goals-and-scavenge.md) |
+| `system.goal.contribute` | Contribute to goal | Operator | [Goals](api/goals-and-scavenge.md) |
+| `system.goal.claim` | Claim goal reward | Operator | [Goals](api/goals-and-scavenge.md) |
+| `system.scavenge.claim` | Claim scavenge points | Operator | [Goals](api/goals-and-scavenge.md) |
 
 ### Marketplace Systems
 
 | System ID | Description | Wallet | Page |
 |-----------|-------------|--------|------|
-| `system.kamimarket.list` | List a Kami for sale (ETH) | Operator | [Marketplace](../player-api/marketplace.md) |
-| `system.kamimarket.buy` | Buy listed Kami(s) with ETH | Owner | [Marketplace](../player-api/marketplace.md) |
-| `system.kamimarket.offer` | Make a specific or collection offer (WETH) | Operator | [Marketplace](../player-api/marketplace.md) |
-| `system.kamimarket.acceptoffer` | Accept an offer (specific or collection) | Operator | [Marketplace](../player-api/marketplace.md) |
-| `system.kamimarket.cancel` | Cancel a listing or offer | Operator | [Marketplace](../player-api/marketplace.md) |
-| `system.newbievendor.buy` | Buy a Kami from the Newbie Vendor (one-time, new accounts only) | Owner (payable) | [Marketplace](../player-api/marketplace.md) |
+| `system.kamimarket.list` | List a Kami for sale (ETH) | Operator | [Marketplace](api/marketplace.md) |
+| `system.kamimarket.buy` | Buy listed Kami(s) with ETH | Owner | [Marketplace](api/marketplace.md) |
+| `system.kamimarket.offer` | Make a specific or collection offer (WETH) | Operator | [Marketplace](api/marketplace.md) |
+| `system.kamimarket.acceptoffer` | Accept an offer (specific or collection) | Operator | [Marketplace](api/marketplace.md) |
+| `system.kamimarket.cancel` | Cancel a listing or offer | Operator | [Marketplace](api/marketplace.md) |
+| `system.newbievendor.buy` | Buy a Kami from the Newbie Vendor (one-time, new accounts only) | Owner (payable) | [Marketplace](api/marketplace.md) |
 
 ### Auction Systems
 
 | System ID | Description | Wallet | Page |
 |-----------|-------------|--------|------|
-| `system.auction.buy` | Buy from auction | Owner | [Listings](../player-api/listings.md) |
+| `system.auction.buy` | Buy from auction | Owner | [Listings](api/listings.md) |
 
 ---
 
@@ -241,7 +241,7 @@ const SYSTEM_ABI = [
 ];
 ```
 
-> **Note:** The `executeTyped()` signature differs per system. Refer to individual [Player API](../player-api/overview.md) pages for exact typed signatures.
+> **Note:** The `executeTyped()` signature differs per system. Refer to individual [Player API](api/overview.md) pages for exact typed signatures.
 
 ### Non-Standard Entry Points
 
@@ -439,6 +439,6 @@ console.log("KamiMarketVault:", vaultAddress);
 
 ## Related Pages
 
-- [Live Addresses](live-addresses.md) — Core contract addresses
-- [Player API Overview](../player-api/overview.md) — How to call systems
-- [Architecture Overview](../architecture.md) — MUD ECS model
+- [Live Addresses](addresses.md) — Core contract addresses
+- [Player API Overview](sdk-setup.md) — How to call systems
+- [Architecture Overview](architecture.md) — MUD ECS model

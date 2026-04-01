@@ -1,6 +1,6 @@
 > **Doc Class:** Core Resource
 > **Canonical Source:** Kamigotchi on-chain contracts on Yominet and the official repository (`Asphodel-OS/kamigotchi`).
-> **Freshness Rule:** Verify mutable values against canonical sources before merge and record updates in `resources/references/data-provenance.md`.
+> **Freshness Rule:** Verify mutable values against canonical sources before merge.
 
 # Kamiden Indexer (gRPC)
 
@@ -324,7 +324,7 @@ Kamiden also indexes non-marketplace data:
 | `GetDeathsByKami` | `LeaderboardRequest` | `LeaderboardResponse` | Deaths grouped by Kami |
 | `GetPNLByKami` | `LeaderboardRequest` | `LeaderboardResponse` | Profit/loss by Kami |
 
-> **Documentation gap:** The methods above list request/response type names but do not yet include field-level documentation. Refer to the proto stubs (`packages/client/src/clients/kamiden/proto.ts` in the official repo) for exact field names, types, and defaults. Contributions documenting these methods are welcome — see [Contributing](../../CONTRIBUTING.md).
+> **Documentation gap:** The methods above list request/response type names but do not yet include field-level documentation. Refer to the proto stubs (`packages/client/src/clients/kamiden/proto.ts` in the official repo) for exact field names, types, and defaults. Contributions documenting these methods are welcome.
 
 > **Note:** `GetHarvestRanking` is defined in the proto stubs but currently returns `UNIMPLEMENTED` from the server.
 
@@ -359,5 +359,5 @@ console.log(`Block: ${block.blockNumber}, Nonce: ${block.nonce}`);
 ## Related Pages
 
 - [KamiSwap Marketplace](marketplace.md) — On-chain marketplace systems (list, buy, offer, cancel)
-- [Entity Discovery](entity-discovery.md) — Deriving entity IDs referenced in indexer responses
+- [Entity Discovery](../entity-ids.md) — Deriving entity IDs referenced in indexer responses
 - [Trading](trading.md) — Player-to-player item trades

@@ -1,6 +1,6 @@
 > **Doc Class:** Core Resource
 > **Canonical Source:** On-chain registries/components on Yominet plus official Kamigotchi deployment data (`Asphodel-OS/kamigotchi`).
-> **Freshness Rule:** Treat this page as a mirror; re-verify mutable values against canonical sources and update `resources/references/data-provenance.md` in the same change.
+> **Freshness Rule:** Treat this page as a mirror; re-verify mutable values against canonical sources .
 
 # Game Data Reference
 
@@ -8,7 +8,7 @@ Lookup tables for game indices used across Kamigotchi systems. These values come
 
 > **Note:** Game data is defined in CSV sheets and deployed on-chain via admin systems. The tables below reflect the current live deployment. CSV file paths referenced below are internal to the Kamigotchi source repository and are not accessible to third-party developers. For the most up-to-date data, query the on-chain components directly.
 >
-> **Freshness authority:** see [Data Provenance and Freshness](data-provenance.md).
+> **Freshness authority:** verify against on-chain canonical sources.
 
 ---
 
@@ -24,7 +24,7 @@ Items are identified by a `uint32` index. The on-chain entity ID for an item is 
 | 2 | VIPP | Misc | VIP Points token — can be burned at Forest Hut (room 65) for VIP benefits |
 | 10 | Gacha Ticket | Misc | Redeemable for one Kami at the vending machine |
 | 11 | Reroll Ticket | Misc | Allows you to reroll a Kami once |
-| 100 | Onyx Shard | ERC20 | In-game form of $ONYX (1 ONYX = 100 Onyx Shards). Deposited/withdrawn via `system.erc20.portal` — see [Chain Configuration](../chain-configuration.md#onyx-shards) |
+| 100 | Onyx Shard | ERC20 | In-game form of $ONYX (1 ONYX = 100 Onyx Shards). Deposited/withdrawn via `system.erc20.portal` — see [Chain Configuration](chain.md#onyx-shards) |
 | 103 | ETH | ERC20 | In-game wrapped ETH balance. Deposited via `system.erc20.portal`. |
 
 ### Raw Materials
@@ -847,7 +847,7 @@ Configuration values for the Kami marketplace.
 | Accept an offer | WETH (ERC-20) | Pulled from buyer by vault |
 | KamiSwap listing purchase | ETH (native) | Sent via `msg.value` |
 
-> See [KamiSwap — Marketplace](../player-api/marketplace.md) for full system documentation.
+> See [KamiSwap — Marketplace](api/marketplace.md) for full system documentation.
 
 ---
 
@@ -871,10 +871,10 @@ Factions are named on-chain entities (with metadata: name, description, media UR
 
 ## See Also
 
-- [Entity Discovery](../player-api/entity-discovery.md) — How to derive and discover entity IDs
-- [Harvesting](../player-api/harvesting.md) — Harvest mechanics and node interactions
-- [Skills & Relationships](../player-api/skills-and-relationships.md) — Skill upgrade system
-- [Quests](../player-api/quests.md) — Quest accept/complete mechanics
+- [Entity Discovery](entity-ids.md) — How to derive and discover entity IDs
+- [Harvesting](api/harvesting.md) — Harvest mechanics and node interactions
+- [Skills & Relationships](api/skills-and-relationships.md) — Skill upgrade system
+- [Quests](api/quests.md) — Quest accept/complete mechanics
 
 ---
 

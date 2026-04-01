@@ -1,12 +1,12 @@
 > **Doc Class:** Core Resource
 > **Canonical Source:** Kamigotchi on-chain contracts on Yominet and the official repository (`Asphodel-OS/kamigotchi`).
-> **Freshness Rule:** Verify mutable values against canonical sources before merge and record updates in `resources/references/data-provenance.md`.
+> **Freshness Rule:** Verify mutable values against canonical sources before merge.
 
 # Player API — Overview & Setup
 
 The Kamigotchi Player API is a set of on-chain **System contracts** that handle all game actions. This page covers how to set up your environment and call any system.
 
-If you are starting from zero, run through [Agent Bootstrap](../../guidance/agent-bootstrap.md) first, then come back here.
+If you are starting from zero, run through [Agent Bootstrap](bootstrap.md) first, then come back here.
 
 ---
 
@@ -15,7 +15,7 @@ If you are starting from zero, run through [Agent Bootstrap](../../guidance/agen
 - **Node.js** v18+ and **ethers.js v6**
 - **ESM mode** enabled (`"type": "module"` in `package.json`)
 - **Environment variables** set for `OWNER_PRIVATE_KEY` and `OPERATOR_PRIVATE_KEY`
-- Two EOAs: Owner (with $ETH) and a **distinct** Operator (with small $ETH for gas). The higher-level bootstrap can derive the operator from the owner key; this page assumes both keys are already available. Privy is only for the web UI (see [Chain Configuration](../chain-configuration.md))
+- Two EOAs: Owner (with $ETH) and a **distinct** Operator (with small $ETH for gas). The higher-level bootstrap can derive the operator from the owner key; this page assumes both keys are already available. Privy is only for the web UI (see [Chain Configuration](chain.md))
 - The World contract address
 
 ```bash
@@ -119,7 +119,7 @@ Kamigotchi uses two wallets per player:
 
 ### New Player Path
 
-After registering, new players need to acquire their first Kami before they can participate in gameplay. The recommended first path is purchasing a Kami on **KamiSwap** marketplace. Gacha is the main alternative path — buy tickets with $MUSU via the auction system. See the [Integration Guide](../../guidance/integration-guide.md#step-5-get-your-first-kami) for the full walkthrough.
+After registering, new players need to acquire their first Kami before they can participate in gameplay. The recommended first path is purchasing a Kami on **KamiSwap** marketplace. Gacha is the main alternative path — buy tickets with $MUSU via the auction system. See the [Integration Guide](guide.md#step-5-get-your-first-kami) for the full walkthrough.
 
 ### Determining Which Wallet to Use
 
@@ -273,7 +273,7 @@ Use the **GetterSystem** for read-only queries (no gas cost):
 
 ```javascript
 // Full ABI with struct fields — required for ethers.js to decode named return values.
-// See resources/contracts/ids-and-abis.md -> Getter System for the complete reference.
+// See system-ids.md -> Getter System for the complete reference.
 const GETTER_ABI = [
   "function getKami(uint256 kamiId) view returns (tuple(uint256 id, uint32 index, string name, string mediaURI, tuple(tuple(int32 base, int32 shift, int32 boost, int32 sync) health, tuple(int32 base, int32 shift, int32 boost, int32 sync) power, tuple(int32 base, int32 shift, int32 boost, int32 sync) harmony, tuple(int32 base, int32 shift, int32 boost, int32 sync) violence) stats, tuple(uint32 face, uint32 hand, uint32 body, uint32 background, uint32 color) traits, string[] affinities, uint256 account, uint256 level, uint256 xp, uint32 room, string state))",
   "function getAccount(uint256 accountId) view returns (tuple(uint32 index, string name, int32 currStamina, uint32 room))",
@@ -309,7 +309,7 @@ console.log("WETH balance:", ethers.formatEther(wethBal));
 - **Check if a Kami is alive:** `kamiData.state === "RESTING"` means alive and idle. Other states: `"HARVESTING"` (busy but alive), `"DEAD"` (needs revive).
 - **Check stamina:** `accountData.currStamina` (int32) — decreases per room move. Regenerates over time on-chain.
 - **Check room:** `accountData.room` for the account's current room, `kamiData.room` for a Kami's room (both uint32 room index).
-- **Inventory queries:** The getter system does not include inventory data. Use the `ValueComponent` directly — see the [Inventory Queries](#inventory-queries) section below and [Entity Discovery](entity-discovery.md) for deriving inventory entity IDs.
+- **Inventory queries:** The getter system does not include inventory data. Use the `ValueComponent` directly — see the [Inventory Queries](#inventory-queries) section below and [Entity Discovery](entity-ids.md) for deriving inventory entity IDs.
 
 ---
 
@@ -389,13 +389,13 @@ const ticketId = getInventoryEntityId(accountId, 10);
 const ticketBalance = await valueComponent.getValue(ticketId);
 console.log("Gacha Tickets:", ticketBalance.toString());
 
-// Any item — just change the index (see resources/references/game-data.md for the full list)
+// Any item — just change the index (see game-data.md for the full list)
 const woodenStickId = getInventoryEntityId(accountId, 1001);
 const stickBalance = await valueComponent.getValue(woodenStickId);
 console.log("Wooden Sticks:", stickBalance.toString());
 ```
 
-> **Note:** `getValue()` returns `0` for entities that don't exist (i.e., items you've never held). This is safe to call for any item index. See [Game Data Reference](../references/game-data.md) for the full item index table.
+> **Note:** `getValue()` returns `0` for entities that don't exist (i.e., items you've never held). This is safe to call for any item index. See [Game Data Reference](game-data.md) for the full item index table.
 
 ---
 
@@ -518,7 +518,7 @@ const harvestId  = BigInt(ethers.keccak256(ethers.solidityPacked(["string","uint
 const inventoryId = BigInt(ethers.keccak256(ethers.solidityPacked(["string","uint256","uint32"], ["inventory.instance", accountId, itemIndex]))); // inventory
 ```
 
-See [Entity Discovery](entity-discovery.md) for the full list.
+See [Entity Discovery](entity-ids.md) for the full list.
 
 ### Read Game State
 
@@ -588,6 +588,6 @@ loop:
 | [Goals & Scavenge](goals-and-scavenge.md) | Contribute, claim |
 | [Gacha / Minting](minting.md) | Mint, reveal, reroll, tickets |
 | [Portal](portal.md) | ERC721 stake/unstake, ERC20 deposit/withdraw |
-| [Entity Discovery](entity-discovery.md) | Entity ID derivation and lookup |
+| [Entity Discovery](entity-ids.md) | Entity ID derivation and lookup |
 | [KamiSwap Marketplace](marketplace.md) | List, buy, offer, cancel |
 | [Kamiden Indexer](indexer.md) | Off-chain gRPC: listings, bids, history, real-time stream |

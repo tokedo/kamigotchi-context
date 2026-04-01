@@ -1,6 +1,6 @@
 > **Doc Class:** Core Resource
 > **Canonical Source:** Kamigotchi on-chain contracts on Yominet and the official repository (`Asphodel-OS/kamigotchi`).
-> **Freshness Rule:** Verify mutable values against canonical sources before merge and record updates in `resources/references/data-provenance.md`.
+> **Freshness Rule:** Verify mutable values against canonical sources before merge.
 
 # Account
 
@@ -132,7 +132,7 @@ console.log("Moved to room", targetRoomIndex);
 Players **cannot** move to any arbitrary room — movement is restricted to **connected rooms**:
 
 1. **Adjacent rooms:** Rooms whose on-chain `Location` coordinates (x, y, z) differ by exactly 1 on a single axis (x or y) with the same z. This is standard grid adjacency — `LibRoom.isAdjacent()` checks `|Δx| == 1, Δy == 0` or `|Δx| == 0, |Δy| == 1`, same z-level.
-2. **Special exits:** Some rooms have an `ExitsComponent` listing additional room indices that can be reached regardless of coordinate adjacency (e.g., portals like Room 11 → Room 15, or Room 72 → Room 88). These are the "Exits" listed in the [Room table](../references/game-data.md#rooms).
+2. **Special exits:** Some rooms have an `ExitsComponent` listing additional room indices that can be reached regardless of coordinate adjacency (e.g., portals like Room 11 → Room 15, or Room 72 → Room 88). These are the "Exits" listed in the [Room table](../game-data.md#rooms).
 3. **Access gates:** Even if a room is reachable, it may have **gate conditions** that must be met (e.g., quest completion, owning a specific item). If conditions fail, the move reverts with `"AccMove: inaccessible room"`.
 
 The move system (`AccountMoveSystem`) checks reachability first (`LibRoom.isReachable`), then accessibility (`LibRoom.isAccessible`), then deducts stamina. Each move costs stamina (configured via `ACCOUNT_STAMINA` config index 2) and grants XP (config index 3).

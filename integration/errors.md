@@ -1,6 +1,6 @@
 > **Doc Class:** Core Resource
 > **Canonical Source:** Kamigotchi on-chain contracts on Yominet and the official repository (`Asphodel-OS/kamigotchi`).
-> **Freshness Rule:** Verify mutable values against canonical sources before merge and record updates in `resources/references/data-provenance.md`.
+> **Freshness Rule:** Verify mutable values against canonical sources before merge .
 
 # Common Revert Reasons
 
@@ -142,7 +142,7 @@ Yominet uses flat gas pricing. If a transaction is stuck, check the nonce — yo
 
 ### "I get 'execution reverted' with no message"
 
-This usually means the system address was not resolved correctly, or you are using the wrong ABI. Double-check your system resolution logic (see [Resolving System Addresses](../contracts/ids-and-abis.md#resolving-system-addresses)) and verify the `executeTyped` signature matches the system you are calling.
+This usually means the system address was not resolved correctly, or you are using the wrong ABI. Double-check your system resolution logic (see [Resolving System Addresses](system-ids.md#resolving-system-addresses)) and verify the `executeTyped` signature matches the system you are calling.
 
 ### "My Kami died during harvesting"
 
@@ -155,7 +155,7 @@ If you have neither ONYX nor a revive item, you need to acquire ONYX (via harves
 
 ### "How do I get my first Kami?"
 
-Purchase a Kami on the **KamiSwap** marketplace, or mint one via the gacha system — see [Minting](../player-api/minting.md) and [KamiSwap](../player-api/marketplace.md).
+Purchase a Kami on the **KamiSwap** marketplace, or mint one via the gacha system — see [Minting](api/minting.md) and [KamiSwap](api/marketplace.md).
 
 ### "Which room should my Kami harvest in?"
 
@@ -192,11 +192,11 @@ You can query the harvest entity's on-chain components to check accumulated rewa
 |---------------|--------|---------|
 | Refer to contract source for craft-specific errors | `system.craft` | Crafting requirement failures |
 
-> **Note:** Portal and crafting error strings are not yet fully catalogued. Check the contract source at `packages/contracts/src/systems/` for exact revert messages. Contributions welcome — see [Contributing](../../CONTRIBUTING.md).
+> **Note:** Portal and crafting error strings are not yet fully catalogued. Check the contract source at `packages/contracts/src/systems/` for exact revert messages. Contributions welcome.
 
 ---
 
 ## See Also
 
-- [Overview — Error Handling](../player-api/overview.md#error-handling) — How to catch and parse revert reasons
-- [System IDs & ABIs](../contracts/ids-and-abis.md) — Complete system reference
+- [Overview — Error Handling](sdk-setup.md#error-handling) — How to catch and parse revert reasons
+- [System IDs & ABIs](system-ids.md) — Complete system reference

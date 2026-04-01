@@ -1,12 +1,12 @@
 > **Doc Class:** Agent Guidance
-> **Canonical Source:** Derived from Core Resources in this repo and canonical sources listed in `resources/references/data-provenance.md`.
+> **Canonical Source:** Derived from Core Resources and on-chain canonical sources.
 > **Freshness Rule:** Do not become source-of-truth for canonical values; link back to Core Resources for addresses, IDs, and tables.
 
 # Agent Bootstrap
 
 This is the shortest end-to-end bootstrap for an agent that starts with a new owner wallet funded only with ETH on Base.
 
-If you want the manual player flow instead, use [Player Quick Start](../resources/player-quick-start.md). This page is for agent and bot setup only.
+This page is for agent and bot setup only.
 
 ## 1) Initialize a Node Project
 
@@ -255,7 +255,7 @@ For bots, the recommended first-Kami flow is:
 3. Let the player choose which Kami they want
 4. Buy the chosen listing with `system.kamimarket.buy`
 
-See [Kamiden Indexer](../resources/player-api/indexer.md#getkamimarketlistings) for the listing query and [KamiSwap Marketplace](../resources/player-api/marketplace.md#2-buy-a-listing) for the on-chain buy call.
+See [Kamiden Indexer](api/indexer.md#getkamimarketlistings) for the listing query and [KamiSwap Marketplace](api/marketplace.md#2-buy-a-listing) for the on-chain buy call.
 
 When choosing a Kami, look at:
 
@@ -263,7 +263,7 @@ When choosing a Kami, look at:
 - **Hand trait** — also carries an affinity, affects harvest efficacy alongside body
 - **Base stats** — every Kami starts with 50 HP / 10 Power / 10 Violence / 10 Harmony, modified by traits
 
-> See [Game Data Reference — Body Traits](../resources/references/game-data.md#body-traits) for the full trait table and [Game Data Reference — Skills](../resources/references/game-data.md#skills) for all 72 skills across 4 trees.
+> See [Game Data Reference — Body Traits](game-data.md#body-traits) for the full trait table and [Game Data Reference — Skills](game-data.md#skills) for all 72 skills across 4 trees.
 
 ### Applying the Build
 
@@ -288,7 +288,7 @@ for (let i = 0; i < 5; i++) {
 console.log("T1 Defensiveness and Toughness maxed.");
 ```
 
-> The `holderID` parameter is the Kami's **entity ID** (not token index). See [skill.upgrade()](../resources/player-api/kami.md#skillupgrade) and [Skills table](../resources/references/game-data.md#skills) for all indices.
+> The `holderID` parameter is the Kami's **entity ID** (not token index). See [skill.upgrade()](api/kami.md#skillupgrade) and [Skills table](game-data.md#skills) for all indices.
 
 ### Staying Alive
 
@@ -330,12 +330,12 @@ await tx.wait();
 console.log("Kami revived — state set to RESTING, HP restored to 33.");
 ```
 
-> See [Health Monitoring](../resources/player-api/harvesting.md#health-monitoring) for polling patterns and thresholds, and [onyx.revive()](../resources/player-api/kami.md#onyxrevive) for full details.
+> See [Health Monitoring](api/harvesting.md#health-monitoring) for polling patterns and thresholds, and [onyx.revive()](api/kami.md#onyxrevive) for full details.
 
 ---
 
 ## Next Docs
 
 1. [Integration Guide](integration-guide.md) for full account + first-Kami setup.
-2. [Entity Discovery](../resources/player-api/entity-discovery.md) for deriving and locating IDs.
-3. [KamiSwap Marketplace](../resources/player-api/marketplace.md) for listing, buying, and offers.
+2. [Entity Discovery](entity-ids.md) for deriving and locating IDs.
+3. [KamiSwap Marketplace](api/marketplace.md) for listing, buying, and offers.

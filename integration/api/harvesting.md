@@ -1,6 +1,6 @@
 > **Doc Class:** Core Resource
 > **Canonical Source:** Kamigotchi on-chain contracts on Yominet and the official repository (`Asphodel-OS/kamigotchi`).
-> **Freshness Rule:** Verify mutable values against canonical sources before merge and record updates in `resources/references/data-provenance.md`.
+> **Freshness Rule:** Verify mutable values against canonical sources before merge.
 
 # Harvesting
 
@@ -63,7 +63,7 @@ console.log("Harvesting started for 3 Kamis");
 
 ### Notes
 
-- The `nodeIndex` parameter corresponds to the room index — each harvest node shares an index with its room (see [Game Data](../references/game-data.md#harvest-nodes)).
+- The `nodeIndex` parameter corresponds to the room index — each harvest node shares an index with its room (see [Game Data](../game-data.md#harvest-nodes)).
 - A newly purchased or minted Kami starts in the account's current room.
 - Kamis already assigned to a harvest will cause the transaction to revert.
 - **There is no node capacity limit** — any number of Kamis can harvest at the same node simultaneously. No need to check availability.
@@ -369,7 +369,7 @@ Intensity increases the longer a Kami stays on a node. It resets when a harvest 
 
 Each node has a **Yield Index** (the item index granted — `1` for MUSU on most nodes, or `2` for VIPP/VIP Paper on certain deeper nodes) and a **Scav Cost** (the stamina cost for scavenging at that node). Nodes also have a **Level Limit** — some beginner nodes cap the Kami level that can earn XP there.
 
-See the [Harvest Nodes table](../references/game-data.md#harvest-nodes) for per-node affinity, yield index, and scav cost values.
+See the [Harvest Nodes table](../game-data.md#harvest-nodes) for per-node affinity, yield index, and scav cost values.
 
 ### Summary
 

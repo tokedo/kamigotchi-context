@@ -1,6 +1,6 @@
 > **Doc Class:** Core Resource
 > **Canonical Source:** Kamigotchi on-chain contracts on Yominet and the official repository (`Asphodel-OS/kamigotchi`).
-> **Freshness Rule:** Verify mutable values against canonical sources before merge and record updates in `resources/references/data-provenance.md`.
+> **Freshness Rule:** Verify mutable values against canonical sources before merge.
 
 # Trading
 
@@ -200,7 +200,7 @@ Trades incur MUSU fees at multiple stages:
 
 - **Creation fee:** A flat MUSU fee (`TRADE_CREATION_FEE` config) is deducted from the maker's inventory when creating a trade.
 - **Delivery fee:** A flat MUSU fee (`TRADE_DELIVERY_FEE` config) is charged to the caller on **every** trade action (create, execute, complete, cancel). Being in the Trade Room (room 66) waives this fee for that action.
-- **Trade tax:** On both execution and completion, a percentage-based tax is applied to MUSU amounts exchanged. The rate is configured via `TRADE_TAX_RATE` as `[precision, numerator]` — tax = `amount × numerator / 10^precision`. Only MUSU (item index 1, see [Entity Discovery — Key Constants](entity-discovery.md#key-constants)) is taxed; non-MUSU items pass through untaxed. The tax is deducted from the received amounts.
+- **Trade tax:** On both execution and completion, a percentage-based tax is applied to MUSU amounts exchanged. The rate is configured via `TRADE_TAX_RATE` as `[precision, numerator]` — tax = `amount × numerator / 10^precision`. Only MUSU (item index 1, see [Entity Discovery — Key Constants](../entity-ids.md#key-constants)) is taxed; non-MUSU items pass through untaxed. The tax is deducted from the received amounts.
 
 > **Tip:** To avoid the delivery fee, move to room 66 (the Trade Room) before performing any trade action.
 
@@ -264,7 +264,7 @@ console.log("Trade entity ID:", tradeId);
 
 There is currently no on-chain function to enumerate open trades. To discover trades available to execute:
 
-1. **Parse events** — Monitor `Store_SetRecord` events for new trade entity creation. See [Parsing Transaction Events](entity-discovery.md#parsing-transaction-events).
+1. **Parse events** — Monitor `Store_SetRecord` events for new trade entity creation. See [Parsing Transaction Events](../entity-ids.md#parsing-transaction-events).
 2. **Use an indexer** — Query an off-chain indexer for open trades (if available).
 3. **Direct sharing** — The maker shares the trade ID out-of-band (e.g., via chat).
 

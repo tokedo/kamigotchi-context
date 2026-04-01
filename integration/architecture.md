@@ -1,6 +1,6 @@
 > **Doc Class:** Core Resource
 > **Canonical Source:** Kamigotchi on-chain contracts on Yominet and the official repository (`Asphodel-OS/kamigotchi`).
-> **Freshness Rule:** Verify mutable values against canonical sources before merge and record updates in `resources/references/data-provenance.md`.
+> **Freshness Rule:** Verify mutable values against canonical sources before merge.
 
 # Architecture Overview
 
@@ -48,7 +48,7 @@ Systems are stateless smart contracts that contain **game logic**. Each system:
 - Is identified by a human-readable **System ID** (e.g., `system.kami.level`)
 - Has its address resolved dynamically via the `systems()` component
 
-Kamigotchi has **66 documented player-facing systems** — see [System IDs & ABIs](contracts/ids-and-abis.md) for the complete list. The World contract contains additional internal and admin systems not covered here.
+Kamigotchi has **66 documented player-facing systems** — see [System IDs & ABIs](system-ids.md) for the complete list. The World contract contains additional internal and admin systems not covered here.
 
 ### Components
 
@@ -93,9 +93,9 @@ Entity IDs are deterministic — derived from known inputs using `keccak256`:
 | Kami | `keccak256(abi.encodePacked("kami.id", kamiIndex))` | Kami #42 -> `keccak256("kami.id", 42)` |
 | Harvest | `keccak256(abi.encodePacked("harvest", kamiEntityId))` | Per-Kami harvest state |
 | Inventory | `keccak256(abi.encodePacked("inventory.instance", accountId, itemIndex))` | Per-account per-item balance |
-| Trade | Non-deterministic — extract from transaction events | Use [Entity Discovery](player-api/entity-discovery.md) |
+| Trade | Non-deterministic — extract from transaction events | Use [Entity Discovery](entity-ids.md) |
 
-See [Entity Discovery](player-api/entity-discovery.md) for the complete derivation reference and helper code.
+See [Entity Discovery](entity-ids.md) for the complete derivation reference and helper code.
 
 ---
 
@@ -177,7 +177,7 @@ const registerSystem = await getSystem("system.account.register", registerABI, o
 await registerSystem.executeTyped(operatorSigner.address, "MyBotAccount");
 ```
 
-This is the approach used throughout the [Integration Guide](../guidance/integration-guide.md) and Player API documentation.
+This is the approach used throughout the [Integration Guide](guide.md) and Player API documentation.
 
 ---
 
@@ -193,7 +193,7 @@ const kamiData = await getterSystem.getKami(kamiEntityId);
 const accountData = await getterSystem.getAccount(accountEntityId);
 ```
 
-> **Note:** For real-time data, Kamigotchi uses an off-chain indexer. If the indexer lags behind, use the [Echo functions](player-api/echo.md) to force-emit current state.
+> **Note:** For real-time data, Kamigotchi uses an off-chain indexer. If the indexer lags behind, use the [Echo functions](api/echo.md) to force-emit current state.
 
 ---
 
@@ -295,7 +295,7 @@ Each Kami has a state tracked by `StateComponent`, defined by the `KamiState` en
 
 ## Related Pages
 
-- [Chain Configuration](chain-configuration.md) — Network details
-- [Live Addresses](contracts/live-addresses.md) — Contract addresses
-- [System IDs & ABIs](contracts/ids-and-abis.md) — All system identifiers
-- [Player API Overview](player-api/overview.md) — How to call systems
+- [Chain Configuration](chain.md) — Network details
+- [Live Addresses](addresses.md) — Contract addresses
+- [System IDs & ABIs](system-ids.md) — All system identifiers
+- [Player API Overview](sdk-setup.md) — How to call systems
