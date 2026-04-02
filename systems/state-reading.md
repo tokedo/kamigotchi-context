@@ -20,7 +20,18 @@ Queries: [integration/sync/query-examples.md](../integration/sync/query-examples
 Best for: aggregate queries, world awareness, any question involving
 multiple entities. Always up-to-date with the latest indexed block.
 
-### 2. Direct RPC (fallback)
+### 2. Kamibots API (v1)
+
+Pre-computed game-meaningful state — projected HP, earnings, node
+occupancy, strategy status. Easiest to consume: no local computation
+or interpretation needed.
+
+See [integration/kamibots/](../integration/kamibots/)
+
+Best for: v1 agent operation. External dependency — will be replaced
+by a local interpretation layer on top of the MUD sync long-term.
+
+### 3. Direct RPC (fallback)
 
 The patterns documented below. Still useful for:
 - One-off queries when the sync isn't running

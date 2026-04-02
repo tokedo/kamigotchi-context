@@ -23,6 +23,29 @@ Yominet RPC ──► MUD store-indexer ──► PostgreSQL ──► Agent que
 - The indexer also exposes a **REST API** on port 3001 for programmatic
   queries (`GET /api/logs`).
 
+## Raw ECS vs Game State
+
+The MUD sync gives you **raw ECS component tables** — the same data the
+blockchain stores. This is NOT directly game-meaningful state. Examples:
+
+| Sync gives you | Agent needs |
+|---|---|
+| `health: [base=50, shift=-5, boost=0, sync=38]` | "Kami #3 has ~32 projected HP" |
+| `state: 2` | "Kami #3 is HARVESTING" |
+| Harvest entity with `start_time`, `node_index` | "Kami #3 has earned ~45 Musu, strain is 12 HP" |
+
+Translating raw ECS into game-meaningful state requires a **game logic
+interpretation layer** — the same business logic the web client runs in
+the browser. The formulas and logic are all documented in `systems/`
+files ([state-reading.md](../../systems/state-reading.md) has projection
+formulas, [harvesting.md](../../systems/harvesting.md) has bounty/strain
+math) — that's the spec. Implementation is future work.
+
+**For v1**: use the [Kamibots read APIs](../kamibots/) for pre-computed
+game state (projected HP, earnings, strategy status). Use the raw MUD
+sync for aggregate queries the Kamibots API doesn't cover (like node
+occupancy across the whole world).
+
 ## What becomes available
 
 With the sync running, the agent has a complete, continuously-updated

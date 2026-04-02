@@ -169,6 +169,11 @@ expensive entity-by-entity RPC scans.
 Setup: [integration/sync/](integration/sync/) |
 Queries: [integration/sync/query-examples.md](integration/sync/query-examples.md)
 
+For v1, agents can also use the **Kamibots API** for pre-computed world
+state and strategy execution (harvest loops, etc.). See
+[integration/kamibots/](integration/kamibots/). The local MUD sync is
+the long-term self-contained path.
+
 ## How to Execute Actions
 
 All gameplay = transactions on **Yominet** (Chain ID `428962654539583`, flat `0.0025 gwei` gas).
