@@ -158,6 +158,17 @@ Base cooldown: **180 seconds** after most actions. Modified by
 before planning the next action.
 See [systems/accounts.md](systems/accounts.md).
 
+## Prerequisites
+
+Before starting gameplay, set up the **local MUD sync** — a background
+indexer that mirrors all on-chain state to a local PostgreSQL database.
+This is the agent's primary read path for world state (node occupancy,
+inventories, all Kami stats). Without it, aggregate queries require
+expensive entity-by-entity RPC scans.
+
+Setup: [integration/sync/](integration/sync/) |
+Queries: [integration/sync/query-examples.md](integration/sync/query-examples.md)
+
 ## How to Execute Actions
 
 All gameplay = transactions on **Yominet** (Chain ID `428962654539583`, flat `0.0025 gwei` gas).

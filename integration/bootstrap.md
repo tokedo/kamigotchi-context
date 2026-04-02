@@ -8,6 +8,29 @@ This is the shortest end-to-end bootstrap for an agent that starts with a new ow
 
 This page is for agent and bot setup only.
 
+## 0) Set Up Local Sync (Infrastructure)
+
+Before funding wallets or registering, start the MUD world state indexer.
+This gives the agent efficient read access to all on-chain state (node
+occupancy, inventory, Kami stats) from the first moment of gameplay.
+
+```bash
+cd integration/sync
+./setup.sh
+```
+
+This starts a PostgreSQL database + MUD indexer via Docker. The indexer
+will begin syncing Yominet blocks immediately. By the time wallet setup
+and registration are done, the sync should be caught up.
+
+Full setup details: [integration/sync/README.md](sync/README.md)
+
+> If you skip this step, the agent can still function using direct RPC
+> calls (see [systems/state-reading.md](../systems/state-reading.md)),
+> but aggregate queries like "who is on my node?" become impractical.
+
+---
+
 ## 1) Initialize a Node Project
 
 ```bash

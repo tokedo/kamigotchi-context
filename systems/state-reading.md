@@ -6,18 +6,47 @@ This is the agent's "nervous system" — every decision in the
 
 ## Overview
 
-Three data sources, in order of preference:
+Two approaches to reading state — use both:
+
+### 1. Synced database (preferred)
+
+Run a local MUD indexer that mirrors all on-chain state to PostgreSQL.
+Query any entity's state, run aggregate queries (node occupancy, room
+population), and join across tables — all via SQL.
+
+Setup: [integration/sync/](../integration/sync/) |
+Queries: [integration/sync/query-examples.md](../integration/sync/query-examples.md)
+
+Best for: aggregate queries, world awareness, any question involving
+multiple entities. Always up-to-date with the latest indexed block.
+
+### 2. Direct RPC (fallback)
+
+The patterns documented below. Still useful for:
+- One-off queries when the sync isn't running
+- `staticCall` checks (e.g., quest completability)
+- Understanding the data model and entity structure
+- Kamiden indexer data (marketplace, kill feed, activity stream)
+
+### Projection formulas (always needed)
+
+**Regardless of which read method you use**, HP/stamina/bounty values are
+lazy-synced on-chain — they only update when an action is executed. Between
+actions, the agent **must project** current values locally using the
+formulas in this file + elapsed time. Both the synced database and direct
+RPC calls return the same last-synced snapshots.
+
+---
+
+### Direct RPC data sources
+
+Three data sources for direct reads, in order of preference:
 
 | Source | Cost | Freshness | Use for |
 |---|---|---|---|
 | **GetterSystem** | Free (view call) | Last sync only | Kami stats, account room/stamina, level, XP |
 | **Component reads** | Free (view call) | Last sync only | Inventory balances, ownership lists, state enum, equipment |
 | **Kamiden indexer** | Free (gRPC) | Near-real-time | Marketplace listings/offers, trade history, kill feed, activity stream |
-
-**Lazy sync caveat**: on-chain stats (HP, stamina, bounty) only update when
-an action is executed (collect, stop, move, etc.). Between actions, the agent
-**must project** current values locally using formulas + elapsed time. The
-GetterSystem returns the last-synced snapshot, not the live value.
 
 ## Kami State
 

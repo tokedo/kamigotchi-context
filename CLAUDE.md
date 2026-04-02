@@ -88,6 +88,7 @@
   | MUD ECS architecture overview | [integration/architecture.md](integration/architecture.md) |
   | Common errors and troubleshooting | [integration/errors.md](integration/errors.md) |
   | Game data tables (nodes, rooms, items) | [integration/game-data.md](integration/game-data.md) |
+  | Complete synced world state (MUD indexer) | [integration/sync/](integration/sync/) |
 
   ## Memory System
 
@@ -95,7 +96,10 @@
   Persistent state lives in `memory/` (gitignored).
   See [systems/memory.md](systems/memory.md) for the full specification.
 
-  On session start, always read:
+  On session start:
+  0. Verify the local MUD sync is running (`curl http://localhost:3001/health`).
+     If not, start it: `cd integration/sync && ./setup.sh`.
+     The sync provides efficient world state reads for all perception queries.
   1. `systems/memory.md` — understand the memory schema
   2. `strategies/INDEX.md` — calibrated decision patterns (read before planning)
   3. `memory/accounts/INDEX.md` — account roster (labels, roles, wallets)
