@@ -1,4 +1,7 @@
-# Kamibots API Integration
+# Kamibots API Integration — V1 Primary
+
+> **V1 primary integration** for both world-state reads and strategy
+> execution. This is what V1 agents use.
 
 > **PLACEHOLDER** — Endpoint details, auth mechanism, and full spec
 > pending from Kamibots team (Coopes). Will be updated when `agents.md`

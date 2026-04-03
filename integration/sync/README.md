@@ -1,3 +1,8 @@
+> **Phase 2 — Not used in V1.** V1 agents use the
+> [Kamibots API](../kamibots/) for world-state reads and strategy
+> execution. This local MUD sync setup is preserved for Phase 2 when
+> we build our own perception layer.
+
 # Local MUD Sync — World State Indexer
 
 The agent's "eyes." A background process that subscribes to every Yominet

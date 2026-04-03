@@ -160,19 +160,14 @@ See [systems/accounts.md](systems/accounts.md).
 
 ## Prerequisites
 
-Before starting gameplay, set up the **local MUD sync** — a background
-indexer that mirrors all on-chain state to a local PostgreSQL database.
-This is the agent's primary read path for world state (node occupancy,
-inventories, all Kami stats). Without it, aggregate queries require
-expensive entity-by-entity RPC scans.
+**V1 agents use the [Kamibots API](integration/kamibots/)** for
+world-state reads (projected HP, earnings, node occupancy) and strategy
+execution (harvest loops, collect cycles). This is the primary
+integration for V1 — see [integration/kamibots/](integration/kamibots/).
 
-Setup: [integration/sync/](integration/sync/) |
-Queries: [integration/sync/query-examples.md](integration/sync/query-examples.md)
-
-For v1, agents can also use the **Kamibots API** for pre-computed world
-state and strategy execution (harvest loops, etc.). See
-[integration/kamibots/](integration/kamibots/). The local MUD sync is
-the long-term self-contained path.
+A local MUD sync that mirrors raw ECS state to PostgreSQL is available
+for Phase 2 when we build our own perception layer. See
+[integration/sync/](integration/sync/) (Phase 2).
 
 ## How to Execute Actions
 

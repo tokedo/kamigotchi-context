@@ -6,30 +6,25 @@ This is the agent's "nervous system" — every decision in the
 
 ## Overview
 
-Two approaches to reading state — use both:
+Three read paths:
 
-### 1. Synced database (preferred)
-
-Run a local MUD indexer that mirrors all on-chain state to PostgreSQL.
-Query any entity's state, run aggregate queries (node occupancy, room
-population), and join across tables — all via SQL.
-
-Setup: [integration/sync/](../integration/sync/) |
-Queries: [integration/sync/query-examples.md](../integration/sync/query-examples.md)
-
-Best for: aggregate queries, world awareness, any question involving
-multiple entities. Always up-to-date with the latest indexed block.
-
-### 2. Kamibots API (v1)
+### 1. Kamibots API (V1 primary)
 
 Pre-computed game-meaningful state — projected HP, earnings, node
-occupancy, strategy status. Easiest to consume: no local computation
-or interpretation needed.
+occupancy, strategy status. No local computation or interpretation needed.
 
 See [integration/kamibots/](../integration/kamibots/)
 
-Best for: v1 agent operation. External dependency — will be replaced
-by a local interpretation layer on top of the MUD sync long-term.
+**V1 agents use this.** External dependency — will be replaced by a
+local interpretation layer on top of the MUD sync in Phase 2.
+
+### 2. Local MUD sync (Phase 2)
+
+Raw ECS tables mirrored to local PostgreSQL. Requires a game logic
+interpretation layer to convert into game-meaningful state. Not used
+in V1 — preserved for Phase 2.
+
+Setup: [integration/sync/](../integration/sync/)
 
 ### 3. Direct RPC (fallback)
 
