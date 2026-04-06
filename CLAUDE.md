@@ -119,15 +119,30 @@
   ### Setup (one-time)
 
   1. Clone this repo as a private fork
-  2. `cp .env.template .env` — fill in KAMIBOTS_API_KEY, PRIVY_ID,
-     OPERATOR_PRIVATE_KEY (see [integration/kamibots/](integration/kamibots/)
-     for registration flow)
+  2. `cp .env.template .env` — fill in per-account private keys
+     (`MAIN_OPERATOR_KEY`, `MAIN_OWNER_KEY`, etc.)
   3. `cp accounts/roster.yaml.template accounts/roster.yaml` — fill in
-     wallet addresses and kami assignments
+     matching public addresses for each label
   4. `cp .claude/settings.json.template .claude/settings.json` — enables
      the PreToolUse hook that blocks .env access
   5. `cd executor && pip install -r requirements.txt`
   6. Configure Claude Code MCP server pointing at `executor/server.py`
+
+  ### Key management
+
+  Private keys and public addresses are split across two files:
+
+  | File | Contains | Visible to LLM | Git |
+  |---|---|---|---|
+  | `.env` | `{LABEL}_OPERATOR_KEY`, `{LABEL}_OWNER_KEY`, auto-populated API creds | No | gitignored |
+  | `accounts/roster.yaml` | Labels, owner addresses, operator addresses | Yes | committed |
+
+  Labels must match between the two files (e.g., `MAIN_OPERATOR_KEY`
+  in `.env` ↔ `main:` in `roster.yaml`). The MCP server cross-references
+  on startup and warns on mismatches.
+
+  `KAMIBOTS_API_KEY` and `PRIVY_ID` in `.env` are auto-populated by the
+  `register_kamibots` tool — do not fill manually.
 
   ### Security Rules
 
@@ -137,34 +152,41 @@
     calls or transactions.
   - Private keys exist only inside the MCP server process. The LLM
     interacts with the game exclusively through tool calls.
-  - `.env`, `accounts/roster.yaml`, `memory/`, `.claude/settings.json`
-    are all gitignored — never committed.
+  - `accounts/roster.yaml` is safe to read — it contains only public
+    addresses. This is the agent's view of "which accounts do I manage."
+  - `.env`, `memory/`, `.claude/settings.json` are gitignored.
 
   ### Session Protocol
 
   Each session follows this loop:
 
-  1. **Read memory** — `accounts/roster.yaml`, `memory/` snapshots
-  2. **Perceive** — call MCP tools: `get_tier()`, `get_kami_state()`,
-     `get_inventory()`, `get_all_strategies()`
-  3. **Plan** — compare current state against strategies and goals
-  4. **Act** — call MCP tools: `start_strategy()`, `feed_kami()`,
-     `move_to_room()`, etc.
-  5. **Record** — update `memory/` with new snapshots and decisions
+  1. **Read roster** — `accounts/roster.yaml` for account labels + addresses
+  2. **Read memory** — `memory/` snapshots and plans
+  3. **Perceive** — call MCP tools: `list_accounts()`,
+     `get_tier(account=...)`, `get_kami_state(kami_id, account=...)`,
+     `get_inventory(account=...)`, `get_all_strategies(account=...)`
+  4. **Plan** — compare current state against strategies and goals
+  5. **Act** — call MCP tools: `start_strategy(...)`, `feed_kami(...)`,
+     `move_to_room(...)`, etc. — always passing the `account` label
+  6. **Record** — update `memory/` with new snapshots and decisions
 
   ### Onboarding (first session)
 
-  If `accounts/roster.yaml` is empty or missing:
-  1. Ask the user for wallet addresses (owner + operator)
-  2. Call `get_tier()` to verify API access
-  3. Call `get_account_kamis(operator_address)` to discover kamis
-  4. Populate `accounts/roster.yaml` with discovered data
-  5. Run initial perception and create first plans in `memory/`
+  1. Call `list_accounts()` — see what accounts are configured
+  2. If Kamibots not registered: call `register_kamibots(account="main")`
+  3. Call `store_operator_key(account=...)` for each account
+  4. Call `get_tier(account=...)` to verify API access
+  5. Call `get_account_kamis(account=...)` for each account to discover kamis
+  6. Update `accounts/roster.yaml` with discovered kami data
+  7. Run initial perception and create first plans in `memory/`
 
   ### MCP Tools Reference
 
   See [executor/README.md](executor/README.md) for the full tool list.
+  All per-account tools accept `account="main"` (default).
+
   Key tools:
+  - **Setup**: `list_accounts`, `register_kamibots`, `store_operator_key`
   - **Reads**: `get_tier`, `get_inventory`, `get_kami_state`,
     `get_kami_state_slim`, `get_nodes`, `get_prices`, `get_npc_prices`
   - **Strategies**: `start_strategy`, `stop_strategy`,

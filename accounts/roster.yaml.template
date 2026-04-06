@@ -1,13 +1,13 @@
-# Account roster — public wallet addresses and kami assignments
-# Copy to roster.yaml and fill in your data
-# Wallet addresses are public on-chain data, safe to store here
+# Account roster — public addresses only. Labels must match .env key prefixes.
+# This file is committed to git and visible to the LLM.
+# Private keys are in .env (gitignored, never visible to LLM).
 
 accounts:
-  - label: "Main"
+  main:
     owner_address: "0x..."
     operator_address: "0x..."
-    tier: "PRO"  # FREE, PRO, GUILD, TEAM
-    kamis:
-      - id: 45
-        name: "MyKami"
-        notes: "harvester, node 14"
+    notes: ""
+  # farm1:
+  #   owner_address: "0x..."
+  #   operator_address: "0x..."
+  #   notes: ""

@@ -8,14 +8,21 @@ Claude Code (brain) --MCP--> executor (muscle) ---> Kamibots API
                                                  \-> Yominet RPC
 ```
 
-## How it works
+## Account labeling system
 
-- **Brain** (Claude Code): reads game context from this repo, reasons about
-  what to do, calls MCP tools to act
-- **Muscle** (this server): holds API keys and wallet keys, injects auth
-  headers, signs transactions, returns results
-- **Security boundary**: a PreToolUse hook blocks the LLM from reading `.env`.
-  The LLM interacts with the game exclusively through MCP tools.
+Each account has a **label** (e.g., `main`, `farm1`). The label ties
+together private keys in `.env` and public addresses in `roster.yaml`:
+
+| File | Contains | Visible to LLM |
+|---|---|---|
+| `.env` | `{LABEL}_OPERATOR_KEY`, `{LABEL}_OWNER_KEY` | No (gitignored, hook-blocked) |
+| `accounts/roster.yaml` | Label, owner address, operator address | Yes (committed) |
+
+On startup, the server scans `.env` for all `*_OPERATOR_KEY` /
+`*_OWNER_KEY` pairs, builds an account registry, and cross-references
+with `roster.yaml` (warns on mismatches).
+
+All per-account tools accept an `account` parameter (default `"main"`).
 
 ## Setup
 
@@ -24,11 +31,36 @@ cd executor
 pip install -r requirements.txt
 ```
 
-Copy and fill in the env template:
-```bash
-cp ../.env.template ../.env
-# Edit ../.env with your keys
-```
+## Initialization flow
+
+1. **Fill `.env`** with private keys:
+   ```bash
+   cp .env.template .env
+   # Edit .env: set MAIN_OPERATOR_KEY, MAIN_OWNER_KEY, etc.
+   ```
+
+2. **Fill `roster.yaml`** with public addresses:
+   ```bash
+   cp accounts/roster.yaml.template accounts/roster.yaml
+   # Edit: set owner_address and operator_address for each label
+   ```
+
+3. **Start MCP server** (via Claude Code config)
+
+4. **Register with Kamibots** (agent calls once):
+   ```
+   register_kamibots(account="main")
+   ```
+   Signs with the owner wallet, saves API key + privy_id to `.env`.
+
+5. **Store operator key** (agent calls per account):
+   ```
+   store_operator_key(account="main")
+   store_operator_key(account="farm1")
+   ```
+   Sends each operator key to Kamibots (encrypted at rest).
+
+6. **Ready to play** — all other tools now work.
 
 ## Running
 
@@ -46,44 +78,49 @@ The server runs as a stdio MCP server, launched by Claude Code:
 }
 ```
 
-Add this to your Claude Code MCP settings (`.claude/settings.json` or
-the global Claude Code config).
-
 ## Available tools
+
+### Account management
+
+| Tool | Description |
+|---|---|
+| `list_accounts()` | Labels + public addresses, registration status |
+| `register_kamibots(account)` | Register with Kamibots API (owner wallet signature) |
+| `store_operator_key(account)` | Send operator key to Kamibots (encrypted) |
 
 ### Kamibots API (state reads)
 
 | Tool | Description |
 |---|---|
-| `get_tier()` | Account tier, tax rate, slot usage |
-| `get_inventory()` | All items and balances |
-| `get_kami_state(kami_id)` | Full kami data (stats, bonuses, harvest) |
-| `get_kami_state_slim(kami_id)` | Lightweight kami data |
-| `get_all_strategies()` | List active strategies |
-| `get_strategy_status(kami_id)` | Single strategy status |
-| `get_strategy_logs(container_id, tail)` | Strategy container logs |
-| `get_prices()` | Marketplace item prices |
-| `get_npc_prices()` | NPC shop prices |
-| `get_nodes()` | All harvest nodes |
-| `get_account_kamis(address)` | Kamis by operator address |
+| `get_tier(account)` | Account tier, tax rate, slot usage |
+| `get_inventory(account)` | All items and balances |
+| `get_kami_state(kami_id, account)` | Full kami data (stats, bonuses, harvest) |
+| `get_kami_state_slim(kami_id, account)` | Lightweight kami data |
+| `get_all_strategies(account)` | List active strategies |
+| `get_strategy_status(kami_id, account)` | Single strategy status |
+| `get_strategy_logs(container_id, tail, account)` | Strategy container logs |
+| `get_prices()` | Marketplace item prices (global) |
+| `get_npc_prices()` | NPC shop prices (global) |
+| `get_nodes()` | All harvest nodes (global) |
+| `get_account_kamis(account, address)` | Kamis by address |
 
 ### Kamibots API (strategy execution)
 
 | Tool | Description |
 |---|---|
-| `start_strategy(type, kami_id, node_id, config)` | Start a strategy |
-| `stop_strategy(kami_id)` | Stop a running strategy |
+| `start_strategy(type, kami_id, node_id, config, account)` | Start a strategy |
+| `stop_strategy(kami_id, account)` | Stop a running strategy |
 
 ### On-chain (direct transactions)
 
 | Tool | Description |
 |---|---|
-| `move_to_room(room_index)` | Move account to a room |
-| `feed_kami(kami_id, food_item_id)` | Feed kami to restore HP |
-| `revive_kami(kami_id)` | Revive dead kami (33 Onyx) |
-| `level_up_kami(kami_id)` | Level up if XP sufficient |
-| `equip_item(kami_id, item_index)` | Equip item to kami |
-| `unequip_item(kami_id, slot_type)` | Unequip from slot |
+| `move_to_room(room_index, account)` | Move account to a room |
+| `feed_kami(kami_id, food_item_id, account)` | Feed kami to restore HP |
+| `revive_kami(kami_id, account)` | Revive dead kami (33 Onyx) |
+| `level_up_kami(kami_id, account)` | Level up if XP sufficient |
+| `equip_item(kami_id, item_index, account)` | Equip item to kami |
+| `unequip_item(kami_id, slot_type, account)` | Unequip from slot |
 
 ## Adding new tools
 
@@ -91,7 +128,8 @@ the global Claude Code config).
 2. Get the ABI from `integration/api/<system>.md`
 3. Add the ABI constant and `@mcp.tool()` function to `server.py`
 4. For Kamibots API tools: use `_api_get`/`_api_post`/`_api_delete`
-5. For on-chain tools: use `_send_tx(system_id, abi, args, gas_limit)`
+5. For on-chain tools: use `_send_tx(account, system_id, abi, args)`
+6. Add `account: str = "main"` parameter to all per-account tools
 
 Entity ID derivation: kami token index -> entity ID via `_kami_entity_id()`.
 See `integration/entity-ids.md` for other entity types.
