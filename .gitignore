@@ -1,5 +1,6 @@
 memory/*
 !memory/.gitkeep
+__pycache__/
 
 # Private fork secrets and state
 .env
