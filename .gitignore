@@ -1,2 +1,7 @@
 memory/*
 !memory/.gitkeep
+
+# Private fork secrets and state
+.env
+accounts/roster.yaml
+.claude/settings.json

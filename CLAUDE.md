@@ -89,6 +89,8 @@
   | Common errors and troubleshooting | [integration/errors.md](integration/errors.md) |
   | Game data tables (nodes, rooms, items) | [integration/game-data.md](integration/game-data.md) |
   | Complete synced world state (MUD indexer) | [integration/sync/](integration/sync/) |
+  | Kamibots API reference (V1 primary) | [integration/kamibots/](integration/kamibots/) |
+  | MCP executor (game action tools) | [executor/](executor/) |
 
   ## Memory System
 
@@ -108,3 +110,64 @@
 
   If `memory/` is empty or missing, this is a cold start — perceive all
   accounts, assign roles, and run a plan revision session to initialize.
+
+  ## Playing Agent (Private Fork)
+
+  When this repo is cloned as a private fork for gameplay, the agent
+  operates through an MCP server that handles secrets and signing.
+
+  ### Setup (one-time)
+
+  1. Clone this repo as a private fork
+  2. `cp .env.template .env` — fill in KAMIBOTS_API_KEY, PRIVY_ID,
+     OPERATOR_PRIVATE_KEY (see [integration/kamibots/](integration/kamibots/)
+     for registration flow)
+  3. `cp accounts/roster.yaml.template accounts/roster.yaml` — fill in
+     wallet addresses and kami assignments
+  4. `cp .claude/settings.json.template .claude/settings.json` — enables
+     the PreToolUse hook that blocks .env access
+  5. `cd executor && pip install -r requirements.txt`
+  6. Configure Claude Code MCP server pointing at `executor/server.py`
+
+  ### Security Rules
+
+  - **NEVER** attempt to read `.env` — the PreToolUse hook will block it.
+    All secrets are handled by the MCP server.
+  - **ALL** game actions go through MCP tools. Do not construct raw API
+    calls or transactions.
+  - Private keys exist only inside the MCP server process. The LLM
+    interacts with the game exclusively through tool calls.
+  - `.env`, `accounts/roster.yaml`, `memory/`, `.claude/settings.json`
+    are all gitignored — never committed.
+
+  ### Session Protocol
+
+  Each session follows this loop:
+
+  1. **Read memory** — `accounts/roster.yaml`, `memory/` snapshots
+  2. **Perceive** — call MCP tools: `get_tier()`, `get_kami_state()`,
+     `get_inventory()`, `get_all_strategies()`
+  3. **Plan** — compare current state against strategies and goals
+  4. **Act** — call MCP tools: `start_strategy()`, `feed_kami()`,
+     `move_to_room()`, etc.
+  5. **Record** — update `memory/` with new snapshots and decisions
+
+  ### Onboarding (first session)
+
+  If `accounts/roster.yaml` is empty or missing:
+  1. Ask the user for wallet addresses (owner + operator)
+  2. Call `get_tier()` to verify API access
+  3. Call `get_account_kamis(operator_address)` to discover kamis
+  4. Populate `accounts/roster.yaml` with discovered data
+  5. Run initial perception and create first plans in `memory/`
+
+  ### MCP Tools Reference
+
+  See [executor/README.md](executor/README.md) for the full tool list.
+  Key tools:
+  - **Reads**: `get_tier`, `get_inventory`, `get_kami_state`,
+    `get_kami_state_slim`, `get_nodes`, `get_prices`, `get_npc_prices`
+  - **Strategies**: `start_strategy`, `stop_strategy`,
+    `get_all_strategies`, `get_strategy_status`, `get_strategy_logs`
+  - **On-chain**: `move_to_room`, `feed_kami`, `revive_kami`,
+    `level_up_kami`, `equip_item`, `unequip_item`

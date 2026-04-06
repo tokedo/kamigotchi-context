@@ -1,0 +1,13 @@
+# Account roster — public wallet addresses and kami assignments
+# Copy to roster.yaml and fill in your data
+# Wallet addresses are public on-chain data, safe to store here
+
+accounts:
+  - label: "Main"
+    owner_address: "0x..."
+    operator_address: "0x..."
+    tier: "PRO"  # FREE, PRO, GUILD, TEAM
+    kamis:
+      - id: 45
+        name: "MyKami"
+        notes: "harvester, node 14"
