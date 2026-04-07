@@ -352,9 +352,13 @@ async def store_operator_key(account: str = "main") -> dict:
             json={"operatorKey": acct.operator_key},
         )
         r.raise_for_status()
-        data = r.json()
 
-    return {**data, "account": account, "operator_address": acct.operator_addr}
+    return {
+        "account": account,
+        "operator_address": acct.operator_addr,
+        "stored": True,
+        "message": "Operator key stored securely",
+    }
 
 
 # ---- Kamibots API: state reads ----
