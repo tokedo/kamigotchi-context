@@ -1,9 +1,16 @@
 {
+  "permissions": {
+    "deny": [
+      "Read(**/.env*)",
+      "Read(**/*.key)",
+      "Read(**/*.pem)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
         "matcher": "Read|Bash",
-        "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q '\\.env'; then echo 'BLOCKED: .env access denied' >&2; exit 1; fi"
+        "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q -E '\\.env|blocklife-keys'; then echo 'BLOCKED: secret file access denied' >&2; exit 1; fi"
       }
     ]
   }

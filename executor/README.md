@@ -1,7 +1,8 @@
 # Kamigotchi MCP Executor
 
-The agent's **muscle**. An MCP server that reads private keys from `.env`
-and exposes game actions as tools. The LLM (brain) never sees secrets.
+The agent's **muscle**. An MCP server that reads private keys from
+`~/.blocklife-keys/.env` (outside the repo) and exposes game actions
+as tools. The LLM (brain) never sees secrets.
 
 ```
 Claude Code (brain) --MCP--> executor (muscle) ---> Kamibots API
@@ -15,12 +16,16 @@ together private keys in `.env` and public addresses in `roster.yaml`:
 
 | File | Contains | Visible to LLM |
 |---|---|---|
-| `.env` | `{LABEL}_OPERATOR_KEY`, `{LABEL}_OWNER_KEY` | No (gitignored, hook-blocked) |
+| `~/.blocklife-keys/.env` | `{LABEL}_OPERATOR_KEY`, `{LABEL}_OWNER_KEY` | No (outside repo, hook-blocked) |
 | `accounts/roster.yaml` | Label, owner address, operator address | Yes (committed) |
 
-On startup, the server scans `.env` for all `*_OPERATOR_KEY` /
-`*_OWNER_KEY` pairs, builds an account registry, and cross-references
-with `roster.yaml` (warns on mismatches).
+Keys live **outside the project directory** at `~/.blocklife-keys/.env`.
+Claude Code auto-indexes files in the working directory on startup — by
+keeping keys external, there is nothing sensitive to discover.
+
+On startup, the server scans `~/.blocklife-keys/.env` for all
+`*_OPERATOR_KEY` / `*_OWNER_KEY` pairs, builds an account registry,
+and cross-references with `roster.yaml` (warns on mismatches).
 
 All per-account tools accept an `account` parameter (default `"main"`).
 
@@ -33,10 +38,11 @@ pip install -r requirements.txt
 
 ## Initialization flow
 
-1. **Fill `.env`** with private keys:
+1. **Create keys file** outside the repo:
    ```bash
-   cp .env.template .env
-   # Edit .env: set MAIN_OPERATOR_KEY, MAIN_OWNER_KEY, etc.
+   mkdir -p ~/.blocklife-keys
+   cp env.template ~/.blocklife-keys/.env
+   # Edit ~/.blocklife-keys/.env: set MAIN_OPERATOR_KEY, MAIN_OWNER_KEY, etc.
    ```
 
 2. **Fill `roster.yaml`** with public addresses:

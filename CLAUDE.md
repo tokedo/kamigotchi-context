@@ -119,12 +119,13 @@
   ### Setup (one-time)
 
   1. Clone this repo as a private fork
-  2. `cp .env.template .env` — fill in per-account private keys
-     (`MAIN_OPERATOR_KEY`, `MAIN_OWNER_KEY`, etc.)
+  2. `mkdir -p ~/.blocklife-keys` then
+     `cp env.template ~/.blocklife-keys/.env` — fill in per-account
+     private keys (`MAIN_OPERATOR_KEY`, `MAIN_OWNER_KEY`, etc.)
   3. `cp accounts/roster.yaml.template accounts/roster.yaml` — fill in
      matching public addresses for each label
   4. `cp .claude/settings.json.template .claude/settings.json` — enables
-     the PreToolUse hook that blocks .env access
+     deny rules and PreToolUse hook that block secret file access
   5. `cd executor && pip install -r requirements.txt`
   6. Configure Claude Code MCP server pointing at `executor/server.py`
 
@@ -134,27 +135,35 @@
 
   | File | Contains | Visible to LLM | Git |
   |---|---|---|---|
-  | `.env` | `{LABEL}_OPERATOR_KEY`, `{LABEL}_OWNER_KEY`, auto-populated API creds | No | gitignored |
+  | `~/.blocklife-keys/.env` | `{LABEL}_OPERATOR_KEY`, `{LABEL}_OWNER_KEY`, auto-populated API creds | No | outside repo |
   | `accounts/roster.yaml` | Labels, owner addresses, operator addresses | Yes | committed |
 
-  Labels must match between the two files (e.g., `MAIN_OPERATOR_KEY`
-  in `.env` ↔ `main:` in `roster.yaml`). The MCP server cross-references
-  on startup and warns on mismatches.
+  Keys live **outside the project directory** at `~/.blocklife-keys/.env`.
+  Claude Code auto-indexes files in the working directory on startup —
+  keeping keys external means there is nothing sensitive to discover.
+  No `.env` file should exist inside the project directory.
 
-  `KAMIBOTS_API_KEY` and `PRIVY_ID` in `.env` are auto-populated by the
+  Labels must match between the two files (e.g., `MAIN_OPERATOR_KEY`
+  in `~/.blocklife-keys/.env` ↔ `main:` in `roster.yaml`). The MCP
+  server cross-references on startup and warns on mismatches.
+
+  `KAMIBOTS_API_KEY` and `PRIVY_ID` are auto-populated by the
   `register_kamibots` tool — do not fill manually.
 
   ### Security Rules
 
-  - **NEVER** attempt to read `.env` — the PreToolUse hook will block it.
-    All secrets are handled by the MCP server.
+  - **NEVER** attempt to read `.env`, `~/.blocklife-keys/`, or any key/pem
+    file — deny rules and PreToolUse hooks will block access. All secrets
+    are handled by the MCP server.
   - **ALL** game actions go through MCP tools. Do not construct raw API
     calls or transactions.
   - Private keys exist only inside the MCP server process. The LLM
     interacts with the game exclusively through tool calls.
+  - The project directory contains **zero secret files**. Keys live
+    outside at `~/.blocklife-keys/.env`.
   - `accounts/roster.yaml` is safe to read — it contains only public
     addresses. This is the agent's view of "which accounts do I manage."
-  - `.env`, `memory/`, `.claude/settings.json` are gitignored.
+  - `memory/`, `.claude/settings.json` are gitignored.
 
   ### Session Protocol
 

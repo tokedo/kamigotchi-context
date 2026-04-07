@@ -1,12 +1,13 @@
 """
 Kamigotchi MCP Executor — the agent's muscle.
 
-Reads private keys from .env on startup. Exposes game actions as MCP tools.
-The LLM (brain) calls tools through Claude Code; this server (muscle) handles
-secrets, API auth, and transaction signing. The LLM never sees private keys.
+Reads private keys from ~/.blocklife-keys/.env (outside the repo).
+Exposes game actions as MCP tools. The LLM (brain) calls tools through
+Claude Code; this server (muscle) handles secrets, API auth, and
+transaction signing. The LLM never sees private keys.
 
-Multi-account: .env holds {LABEL}_OPERATOR_KEY / {LABEL}_OWNER_KEY pairs.
-accounts/roster.yaml maps labels to public addresses (visible to the LLM).
+Multi-account: keys file holds {LABEL}_OPERATOR_KEY / {LABEL}_OWNER_KEY
+pairs. accounts/roster.yaml (in-repo) maps labels to public addresses.
 All per-account tools accept an `account` label parameter (default "main").
 
 Architecture:
@@ -30,10 +31,10 @@ from web3 import Web3
 # ---------------------------------------------------------------------------
 
 _REPO = Path(__file__).resolve().parent.parent
-_ENV_PATH = _REPO / ".env"
+_KEYS_PATH = Path.home() / ".blocklife-keys" / ".env"
 _ROSTER_PATH = _REPO / "accounts" / "roster.yaml"
 
-load_dotenv(_ENV_PATH)
+load_dotenv(_KEYS_PATH)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -318,10 +319,10 @@ async def register_kamibots(account: str = "main") -> dict:
 
     if api_key:
         _kamibots_api_key = api_key
-        set_key(str(_ENV_PATH), "KAMIBOTS_API_KEY", api_key)
+        set_key(str(_KEYS_PATH), "KAMIBOTS_API_KEY", api_key)
     if privy_id:
         _privy_id = privy_id
-        set_key(str(_ENV_PATH), "PRIVY_ID", privy_id)
+        set_key(str(_KEYS_PATH), "PRIVY_ID", privy_id)
 
     return {
         "registered": True,
