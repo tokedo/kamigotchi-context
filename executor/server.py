@@ -98,9 +98,15 @@ def _kami_entity_id(kami_index: int) -> int:
 
 
 class _Account:
-    __slots__ = ("label", "operator_key", "owner_key", "operator_addr", "owner_addr")
+    __slots__ = (
+        "label", "operator_key", "owner_key", "operator_addr", "owner_addr",
+        "api_key", "privy_id",
+    )
 
-    def __init__(self, label: str, operator_key: str, owner_key: str | None):
+    def __init__(
+        self, label: str, operator_key: str, owner_key: str | None,
+        api_key: str | None = None, privy_id: str | None = None,
+    ):
         self.label = label
         self.operator_key = operator_key
         self.owner_key = owner_key
@@ -108,14 +114,11 @@ class _Account:
         self.owner_addr = (
             w3.eth.account.from_key(owner_key).address if owner_key else None
         )
+        self.api_key = api_key
+        self.privy_id = privy_id
 
 
 _accounts: dict[str, _Account] = {}
-
-# Kamibots credentials — shared across accounts (per-user, not per-account).
-# Auto-populated by register_kamibots tool.
-_kamibots_api_key: str | None = os.environ.get("KAMIBOTS_API_KEY") or None
-_privy_id: str | None = os.environ.get("PRIVY_ID") or None
 
 
 def _load_accounts() -> None:
@@ -128,15 +131,32 @@ def _load_accounts() -> None:
             labels.add(key.removesuffix("_OWNER_KEY").lower())
 
     for label in sorted(labels):
-        op_key = os.environ.get(f"{label.upper()}_OPERATOR_KEY")
-        own_key = os.environ.get(f"{label.upper()}_OWNER_KEY")
+        up = label.upper()
+        op_key = os.environ.get(f"{up}_OPERATOR_KEY")
+        own_key = os.environ.get(f"{up}_OWNER_KEY")
         if not op_key:
             print(
-                f"WARNING: {label.upper()}_OPERATOR_KEY missing, "
+                f"WARNING: {up}_OPERATOR_KEY missing, "
                 f"skipping account '{label}'"
             )
             continue
-        _accounts[label] = _Account(label, op_key, own_key)
+        api_key = os.environ.get(f"{up}_KAMIBOTS_API_KEY")
+        privy_id = os.environ.get(f"{up}_PRIVY_ID")
+        _accounts[label] = _Account(label, op_key, own_key, api_key, privy_id)
+
+    # Migrate legacy global credentials to first account that lacks them
+    legacy_api = os.environ.get("KAMIBOTS_API_KEY")
+    legacy_privy = os.environ.get("PRIVY_ID")
+    if legacy_api or legacy_privy:
+        for acct in _accounts.values():
+            if not acct.api_key and legacy_api:
+                acct.api_key = legacy_api
+                print(f"NOTE: Migrated legacy KAMIBOTS_API_KEY to '{acct.label}'. "
+                      f"Re-run register_kamibots(account='{acct.label}') to "
+                      f"write {acct.label.upper()}_KAMIBOTS_API_KEY to .env.")
+            if not acct.privy_id and legacy_privy:
+                acct.privy_id = legacy_privy
+                break  # only assign legacy creds to one account
 
     # Cross-reference with roster.yaml
     if _ROSTER_PATH.exists():
@@ -150,7 +170,10 @@ def _load_accounts() -> None:
             print(f"WARNING: '{lbl}' has keys in .env but not in roster.yaml")
 
     if _accounts:
+        registered = [l for l, a in _accounts.items() if a.api_key]
         print(f"Loaded {len(_accounts)} account(s): {', '.join(_accounts.keys())}")
+        if registered:
+            print(f"  Kamibots registered: {', '.join(registered)}")
     else:
         print("WARNING: No accounts loaded. Fill .env with *_OPERATOR_KEY entries.")
 
@@ -207,45 +230,62 @@ def _send_tx(
     }
 
 
+def _send_tx_retry(
+    account: str,
+    system_id: str,
+    abi: list,
+    args: list,
+    gas_limit: int | None = None,
+    retries: int = 3,
+) -> dict:
+    """_send_tx with retry on transient RPC errors (e.g. -32000 nonce race)."""
+    for attempt in range(retries):
+        try:
+            return _send_tx(account, system_id, abi, args, gas_limit)
+        except Exception as e:
+            if attempt < retries - 1 and "-32000" in str(e):
+                time.sleep(1)
+                continue
+            raise
+
+
 # ---------------------------------------------------------------------------
 # Kamibots API helpers
 # ---------------------------------------------------------------------------
 
 
-def _require_api_key() -> None:
-    if not _kamibots_api_key:
+def _headers(account: str) -> dict:
+    acct = _get_account(account)
+    if not acct.api_key:
         raise ValueError(
-            "Kamibots API key not set. Call register_kamibots(account) first."
+            f"No Kamibots API key for account '{account}'. "
+            f"Call register_kamibots(account='{account}') first."
         )
+    return {"X-Agent-Key": acct.api_key}
 
 
-def _headers() -> dict:
-    _require_api_key()
-    return {"X-Agent-Key": _kamibots_api_key}
-
-
-async def _api_get(path: str) -> dict:
+async def _api_get(path: str, account: str) -> dict:
     async with httpx.AsyncClient(timeout=30) as c:
-        r = await c.get(f"{KAMIBOTS_BASE}{path}", headers=_headers())
+        r = await c.get(f"{KAMIBOTS_BASE}{path}", headers=_headers(account))
         r.raise_for_status()
         return r.json()
 
 
-async def _api_post(path: str, body: dict | None = None) -> dict:
+async def _api_post(path: str, body: dict | None, account: str) -> dict:
     async with httpx.AsyncClient(timeout=30) as c:
         r = await c.post(
-            f"{KAMIBOTS_BASE}{path}", headers=_headers(), json=body or {}
+            f"{KAMIBOTS_BASE}{path}", headers=_headers(account), json=body or {}
         )
         r.raise_for_status()
         return r.json()
 
 
-async def _api_delete(path: str, body: dict | None = None) -> dict:
+async def _api_delete(path: str, body: dict | None, account: str) -> dict:
     async with httpx.AsyncClient(timeout=30) as c:
         r = await c.request(
             "DELETE",
             f"{KAMIBOTS_BASE}{path}",
-            headers={**_headers(), "Content-Type": "application/json"},
+            headers={**_headers(account), "Content-Type": "application/json"},
             content=json.dumps(body) if body else None,
         )
         r.raise_for_status()
@@ -272,8 +312,9 @@ def list_accounts() -> dict:
         accts[label] = {
             "operator_address": acct.operator_addr,
             "owner_address": acct.owner_addr,
+            "kamibots_registered": acct.api_key is not None,
         }
-    return {"accounts": accts, "kamibots_registered": _kamibots_api_key is not None}
+    return {"accounts": accts}
 
 
 @mcp.tool()
@@ -281,14 +322,12 @@ async def register_kamibots(account: str = "main") -> dict:
     """Register with Kamibots API using the account's owner wallet.
 
     Signs a registration message, obtains API key and privy_id, and saves
-    them to .env automatically. Only needs to be called once — credentials
-    are shared across all accounts.
+    them to .env as {LABEL}_KAMIBOTS_API_KEY and {LABEL}_PRIVY_ID.
+    Each account gets its own credentials — call once per account.
 
     Args:
         account: Account label (must have an owner key in .env).
     """
-    global _kamibots_api_key, _privy_id
-
     acct = _get_account(account)
     if not acct.owner_key:
         raise ValueError(
@@ -314,15 +353,16 @@ async def register_kamibots(account: str = "main") -> dict:
         r.raise_for_status()
         data = r.json()
 
+    up = account.upper()
     api_key = data.get("apiKey")
     privy_id = data.get("privyId")
 
     if api_key:
-        _kamibots_api_key = api_key
-        set_key(str(_KEYS_PATH), "KAMIBOTS_API_KEY", api_key)
+        acct.api_key = api_key
+        set_key(str(_KEYS_PATH), f"{up}_KAMIBOTS_API_KEY", api_key)
     if privy_id:
-        _privy_id = privy_id
-        set_key(str(_KEYS_PATH), "PRIVY_ID", privy_id)
+        acct.privy_id = privy_id
+        set_key(str(_KEYS_PATH), f"{up}_PRIVY_ID", privy_id)
 
     return {
         "registered": True,
@@ -330,8 +370,8 @@ async def register_kamibots(account: str = "main") -> dict:
         "has_operator_key": data.get("hasOperatorKey"),
         "api_key_saved": bool(api_key),
         "privy_id_saved": bool(privy_id),
-        "message": "API key and privy_id saved to .env. "
-        "Next: call store_operator_key() for each account.",
+        "message": f"Credentials saved as {up}_KAMIBOTS_API_KEY and {up}_PRIVY_ID. "
+        f"Next: call store_operator_key(account='{account}').",
     }
 
 
@@ -349,7 +389,7 @@ async def store_operator_key(account: str = "main") -> dict:
     async with httpx.AsyncClient(timeout=30) as c:
         r = await c.post(
             f"{KAMIBOTS_BASE}/api/agent/operator-key",
-            headers=_headers(),
+            headers=_headers(account),
             json={"operatorKey": acct.operator_key},
         )
         r.raise_for_status()
@@ -370,9 +410,9 @@ async def get_tier(account: str = "main") -> dict:
     """Account tier info: tier name, tax rate, total/used/remaining strategy slots.
 
     Args:
-        account: Account label (for context; API key is shared).
+        account: Account label.
     """
-    return await _api_get("/api/agent/tier")
+    return await _api_get("/api/agent/tier", account)
 
 
 @mcp.tool()
@@ -380,9 +420,9 @@ async def get_inventory(account: str = "main") -> dict:
     """All items and balances in the account inventory.
 
     Args:
-        account: Account label (for context; API key is shared).
+        account: Account label.
     """
-    return await _api_get("/api/agent/inventory")
+    return await _api_get("/api/agent/inventory?compact=true", account)
 
 
 @mcp.tool()
@@ -393,7 +433,7 @@ async def get_kami_state(kami_id: int, account: str = "main") -> dict:
         kami_id: Kami token index (e.g. 45).
         account: Account label (for context).
     """
-    return await _api_get(f"/api/playwright/kami/{kami_id}/")
+    return await _api_get(f"/api/playwright/kami/{kami_id}/", account)
 
 
 @mcp.tool()
@@ -404,7 +444,7 @@ async def get_kami_state_slim(kami_id: int, account: str = "main") -> dict:
         kami_id: Kami token index (e.g. 45).
         account: Account label (for context).
     """
-    return await _api_get(f"/api/playwright/kami/{kami_id}/slim")
+    return await _api_get(f"/api/playwright/kami/{kami_id}/slim", account)
 
 
 @mcp.tool()
@@ -412,9 +452,23 @@ async def get_all_strategies(account: str = "main") -> dict:
     """List all active strategies for this account.
 
     Args:
-        account: Account label (for context; API key is shared).
+        account: Account label.
     """
-    return await _api_get("/api/agent/strategies")
+    return await _api_get("/api/agent/strategies", account)
+
+
+@mcp.tool()
+async def get_guild_members(account: str = "main") -> dict:
+    """List all guild and team member account names.
+
+    Useful for building a dynamic friendly list (e.g. bodyguard
+    friendAccountNames) so guild members don't attack each other.
+    Restricted to GUILD and TEAM tier accounts.
+
+    Args:
+        account: Account label.
+    """
+    return await _api_get("/api/agent/guild/members", account)
 
 
 @mcp.tool()
@@ -425,7 +479,7 @@ async def get_strategy_status(kami_id: int, account: str = "main") -> dict:
         kami_id: Kami token index.
         account: Account label (for context).
     """
-    return await _api_get(f"/api/strategies/status/{kami_id}")
+    return await _api_get(f"/api/strategies/status/{kami_id}", account)
 
 
 @mcp.tool()
@@ -439,25 +493,37 @@ async def get_strategy_logs(
         tail: Number of log lines to return (default 30).
         account: Account label (for context).
     """
-    return await _api_get(f"/api/strategies/{container_id}/logs?tail={tail}")
+    return await _api_get(f"/api/strategies/{container_id}/logs?tail={tail}", account)
 
 
 @mcp.tool()
-async def get_prices() -> dict:
-    """Latest marketplace prices for all items. Cached ~3 minutes."""
-    return await _api_get("/api/prices/latest")
+async def get_prices(account: str = "main") -> dict:
+    """Latest marketplace prices for all items. Cached ~3 minutes.
+
+    Args:
+        account: Account label (any registered account works).
+    """
+    return await _api_get("/api/prices/latest", account)
 
 
 @mcp.tool()
-async def get_npc_prices() -> dict:
-    """Live NPC shop prices for all items."""
-    return await _api_get("/api/npc-prices/live")
+async def get_npc_prices(account: str = "main") -> dict:
+    """Live NPC shop prices for all items.
+
+    Args:
+        account: Account label (any registered account works).
+    """
+    return await _api_get("/api/npc-prices/live", account)
 
 
 @mcp.tool()
-async def get_nodes() -> dict:
-    """All harvest nodes: affinity, room, drops, level requirements. Cached 24h."""
-    return await _api_get("/api/playwright/nodes")
+async def get_nodes(account: str = "main") -> dict:
+    """All harvest nodes: affinity, room, drops, level requirements. Cached 24h.
+
+    Args:
+        account: Account label (any registered account works).
+    """
+    return await _api_get("/api/playwright/nodes", account)
 
 
 @mcp.tool()
@@ -472,7 +538,7 @@ async def get_account_kamis(
     """
     if not address:
         address = _get_account(account).operator_addr
-    return await _api_get(f"/api/accounts/{address}/kamis")
+    return await _api_get(f"/api/accounts/{address}/kamis", account)
 
 
 # ---- Kamibots API: strategy management ----
@@ -497,8 +563,12 @@ async def start_strategy(
             See integration/kamibots/README.md for schemas.
         account: Account label.
     """
-    if not _privy_id:
-        raise ValueError("privy_id not set. Call register_kamibots() first.")
+    acct = _get_account(account)
+    if not acct.privy_id:
+        raise ValueError(
+            f"No privy_id for account '{account}'. "
+            f"Call register_kamibots(account='{account}') first."
+        )
     return await _api_post(
         "/api/strategies/start",
         {
@@ -506,24 +576,30 @@ async def start_strategy(
             "kamiId": kami_id,
             "nodeId": node_id,
             "config": config,
-            "keyData": {"privy_id": _privy_id},
+            "keyData": {"privy_id": acct.privy_id},
         },
+        account,
     )
 
 
 @mcp.tool()
-async def stop_strategy(kami_id: int, account: str = "main") -> dict:
+async def stop_strategy(kami_id: str, account: str = "main") -> dict:
     """Stop the running strategy for a kami.
 
     Args:
-        kami_id: Kami token index.
+        kami_id: Kami token index (e.g. "45") or craft strategy ID (e.g. "craft_zpki5vkc").
         account: Account label.
     """
-    if not _privy_id:
-        raise ValueError("privy_id not set. Call register_kamibots() first.")
+    acct = _get_account(account)
+    if not acct.privy_id:
+        raise ValueError(
+            f"No privy_id for account '{account}'. "
+            f"Call register_kamibots(account='{account}') first."
+        )
     return await _api_delete(
         f"/api/strategies/kami/{kami_id}",
-        {"keyData": {"privy_id": _privy_id}},
+        {"keyData": {"privy_id": acct.privy_id}},
+        account,
     )
 
 
@@ -547,6 +623,11 @@ _ABI_REVIVE = json.loads(
 _ABI_LEVEL = json.loads(
     '[{"type":"function","name":"executeTyped",'
     '"inputs":[{"name":"kamiID","type":"uint256"}],'
+    '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"}]'
+)
+_ABI_SKILL = json.loads(
+    '[{"type":"function","name":"executeTyped",'
+    '"inputs":[{"name":"holderID","type":"uint256"},{"name":"skillIndex","type":"uint32"}],'
     '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"}]'
 )
 _ABI_EQUIP = json.loads(
@@ -616,6 +697,158 @@ def level_up_kami(kami_id: int, account: str = "main") -> dict:
     return _send_tx(
         account, "system.kami.level", _ABI_LEVEL, [_kami_entity_id(kami_id)]
     )
+
+
+@mcp.tool()
+def upgrade_skill(kami_id: int, skill_index: int, account: str = "main") -> dict:
+    """Upgrade a skill on a kami by 1 point. Costs 1 SP. Kami must be RESTING.
+
+    Args:
+        kami_id: Kami token index (e.g. 45).
+        skill_index: Skill index from catalogs/skills.csv (e.g. 311 for
+            Guardian Defensiveness, 212 for Enlightened Cardio).
+        account: Account label.
+    """
+    return _send_tx(
+        account,
+        "system.skill.upgrade",
+        _ABI_SKILL,
+        [_kami_entity_id(kami_id), skill_index],
+    )
+
+
+@mcp.tool()
+def allocate_skills(
+    kami_id: int, skill_plan: list[dict], account: str = "main"
+) -> dict:
+    """Allocate multiple skill points in one call. Executes sequentially on-chain.
+
+    Args:
+        kami_id: Kami token index.
+        skill_plan: List of {"skill_index": int, "points": int} dicts.
+            Example: [{"skill_index": 311, "points": 5}, {"skill_index": 312, "points": 5}]
+            Must respect tier gate ordering — lower tiers first.
+        account: Account label.
+    """
+    entity_id = _kami_entity_id(kami_id)
+    total_planned = sum(s["points"] for s in skill_plan)
+    done = 0
+    for skill in skill_plan:
+        for _ in range(skill["points"]):
+            try:
+                _send_tx_retry(
+                    account, "system.skill.upgrade", _ABI_SKILL,
+                    [entity_id, skill["skill_index"]],
+                )
+                done += 1
+            except Exception as e:
+                return {
+                    "kami_id": kami_id,
+                    "allocated": done,
+                    "failed_at": skill["skill_index"],
+                    "total_planned": total_planned,
+                    "error": str(e),
+                }
+    return {
+        "kami_id": kami_id,
+        "allocated": done,
+        "total_planned": total_planned,
+        "success": True,
+    }
+
+
+@mcp.tool()
+async def level_to(
+    kami_id: int, target_level: int, account: str = "main"
+) -> dict:
+    """Level up a kami repeatedly until it reaches target_level.
+
+    Queries current level from the API, then executes the exact number of
+    level-up transactions needed. Retries on transient RPC errors.
+
+    Args:
+        kami_id: Kami token index (e.g. 45).
+        target_level: Desired level (e.g. 32). Must have enough XP banked.
+        account: Account label.
+    """
+    state = await _api_get(f"/api/playwright/kami/{kami_id}/", account)
+    current = state["progress"]["level"]
+    levels_needed = target_level - current
+    if levels_needed <= 0:
+        return {
+            "kami_id": kami_id,
+            "current_level": current,
+            "target_level": target_level,
+            "message": "Already at or above target level",
+        }
+    entity_id = _kami_entity_id(kami_id)
+    done = 0
+    for _ in range(levels_needed):
+        try:
+            r = _send_tx_retry(
+                account, "system.kami.level", _ABI_LEVEL, [entity_id],
+            )
+            if r["status"] != "success":
+                break
+            done += 1
+        except Exception as e:
+            return {
+                "kami_id": kami_id,
+                "from_level": current,
+                "reached_level": current + done,
+                "target_level": target_level,
+                "levels_gained": done,
+                "error": str(e),
+            }
+    return {
+        "kami_id": kami_id,
+        "from_level": current,
+        "reached_level": current + done,
+        "target_level": target_level,
+        "levels_gained": done,
+        "success": current + done >= target_level,
+    }
+
+
+@mcp.tool()
+def use_item_batch(
+    kami_id: int, item_id: int, count: int, account: str = "main"
+) -> dict:
+    """Use the same item on a kami multiple times. Executes sequentially.
+
+    Works for any consumable: food (HP), XP potions, buff potions, etc.
+    Retries on transient RPC errors.
+
+    Args:
+        kami_id: Kami token index (e.g. 45).
+        item_id: Item ID (e.g. 11411 for Fortified XP Potion, 11302 for Burger).
+        count: Number of times to use the item.
+        account: Account label.
+    """
+    entity_id = _kami_entity_id(kami_id)
+    done = 0
+    for _ in range(count):
+        try:
+            _send_tx_retry(
+                account, "system.kami.use.item", _ABI_FEED,
+                [entity_id, item_id],
+            )
+            done += 1
+        except Exception as e:
+            return {
+                "kami_id": kami_id,
+                "item_id": item_id,
+                "used": done,
+                "planned": count,
+                "error": str(e),
+            }
+    return {
+        "kami_id": kami_id,
+        "item_id": item_id,
+        "used": done,
+        "planned": count,
+        "success": True,
+    }
 
 
 @mcp.tool()
