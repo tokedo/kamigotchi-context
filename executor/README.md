@@ -108,6 +108,9 @@ The server runs as a stdio MCP server, launched by Claude Code:
 | `get_prices()` | Marketplace item prices (global) |
 | `get_npc_prices()` | NPC shop prices (global) |
 | `get_nodes()` | All harvest nodes (global) |
+| `get_killer_ranking(account)` | Top predator kamis by kill count (1h cache) |
+| `get_leaderboard(type, account)` | Leaderboards: 'harvest' or 'kill' (20m cache) |
+| `get_all_kamis(account)` | All kamis in game: index, name, state (24h cache) |
 | `get_account_kamis(account, address)` | Kamis by address |
 
 ### Kamibots API (strategy execution)
