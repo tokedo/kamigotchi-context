@@ -1,6 +1,8 @@
 memory/*
 !memory/.gitkeep
 __pycache__/
+.DS_Store
+.mcp.json
 
 # Private fork state
 .claude/settings.json
