@@ -14,8 +14,10 @@ Architecture:
   Claude Code (brain) --MCP--> executor (muscle) ---> Kamibots API / Yominet RPC
 """
 
+import csv
 import json
 import os
+import struct
 import time
 from pathlib import Path
 
@@ -58,6 +60,8 @@ _GAS_PRICE = {"maxFeePerGas": 2_500_000, "maxPriorityFeePerGas": 0}
 
 _WORLD_ABI = json.loads(
     '[{"type":"function","name":"systems","inputs":[],'
+    '"outputs":[{"type":"address"}],"stateMutability":"view"},'
+    '{"type":"function","name":"components","inputs":[],'
     '"outputs":[{"type":"address"}],"stateMutability":"view"}]'
 )
 _SYSTEMS_COMPONENT_ABI = json.loads(
@@ -89,6 +93,13 @@ def _kami_entity_id(kami_index: int) -> int:
     """Derive kami entity ID from token index: keccak256("kami.id", index)."""
     return int.from_bytes(
         Web3.solidity_keccak(["string", "uint32"], ["kami.id", kami_index]), "big"
+    )
+
+
+def _harvest_entity_id(kami_entity_id: int) -> int:
+    """Derive harvest entity ID: keccak256("harvest", kamiEntityId)."""
+    return int.from_bytes(
+        Web3.solidity_keccak(["string", "uint256"], ["harvest", kami_entity_id]), "big"
     )
 
 
@@ -247,6 +258,313 @@ def _send_tx_retry(
                 time.sleep(1)
                 continue
             raise
+
+
+def _send_tx_owner(
+    account: str,
+    system_id: str,
+    abi: list,
+    args: list,
+    gas_limit: int | None = None,
+) -> dict:
+    """Build, sign, send a transaction with the account's owner key."""
+    acct = _get_account(account)
+    if not acct.owner_key:
+        raise ValueError(
+            f"Account '{account}' has no owner key. "
+            f"Set {account.upper()}_OWNER_KEY in .env."
+        )
+    addr = _resolve_system(system_id)
+    contract = w3.eth.contract(address=addr, abi=abi)
+    fn = contract.functions.executeTyped(*args)
+
+    tx_params = {
+        "from": acct.owner_addr,
+        "chainId": CHAIN_ID,
+        "nonce": w3.eth.get_transaction_count(acct.owner_addr),
+        **_GAS_PRICE,
+    }
+    if gas_limit:
+        tx_params["gas"] = gas_limit
+
+    built = fn.build_transaction(tx_params)
+    signed = w3.eth.account.sign_transaction(built, private_key=acct.owner_key)
+    tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+    receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+
+    return {
+        "tx_hash": "0x" + receipt.transactionHash.hex(),
+        "status": "success" if receipt.status == 1 else "reverted",
+        "block": receipt.blockNumber,
+        "gas_used": receipt.gasUsed,
+        "account": account,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Component resolution (for on-chain reads)
+# ---------------------------------------------------------------------------
+
+_component_cache: dict[str, str] = {}
+
+
+def _resolve_component(component_id: str) -> str:
+    """Resolve component ID to on-chain contract address (cached).
+
+    Components resolve via world.components(), NOT world.systems().
+    """
+    if component_id not in _component_cache:
+        h = int.from_bytes(Web3.keccak(text=component_id), "big")
+        cc_addr = _world.functions.components().call()
+        cc = w3.eth.contract(address=cc_addr, abi=_SYSTEMS_COMPONENT_ABI)
+        entities = cc.functions.getEntitiesWithValue(h).call()
+        if not entities:
+            raise ValueError(f"Component not found on-chain: {component_id}")
+        addr = Web3.to_checksum_address(
+            "0x" + hex(entities[0])[2:].zfill(40)[-40:]
+        )
+        _component_cache[component_id] = addr
+    return _component_cache[component_id]
+
+
+_ID_COMPONENT_ABI = json.loads(
+    '[{"type":"function","name":"getEntitiesWithValue",'
+    '"inputs":[{"name":"v","type":"uint256"}],'
+    '"outputs":[{"type":"uint256[]"}],"stateMutability":"view"},'
+    '{"type":"function","name":"getValue",'
+    '"inputs":[{"name":"entity","type":"uint256"}],'
+    '"outputs":[{"type":"uint256"}],"stateMutability":"view"},'
+    '{"type":"function","name":"has",'
+    '"inputs":[{"name":"entity","type":"uint256"}],'
+    '"outputs":[{"type":"bool"}],"stateMutability":"view"}]'
+)
+
+_STATE_COMPONENT_ABI = json.loads(
+    '[{"type":"function","name":"getValue",'
+    '"inputs":[{"name":"entity","type":"uint256"}],'
+    '"outputs":[{"type":"string"}],"stateMutability":"view"}]'
+)
+
+_BOOL_COMPONENT_ABI = json.loads(
+    '[{"type":"function","name":"has",'
+    '"inputs":[{"name":"entity","type":"uint256"}],'
+    '"outputs":[{"type":"bool"}],"stateMutability":"view"}]'
+)
+
+
+# ---------------------------------------------------------------------------
+# Item name lookup (from catalogs/items.csv)
+# ---------------------------------------------------------------------------
+
+_ITEM_NAMES: dict[int, str] = {}
+
+
+def _get_item_name(index: int) -> str:
+    """Return human-readable item name for an item index."""
+    if not _ITEM_NAMES:
+        csv_path = _REPO / "catalogs" / "items.csv"
+        if csv_path.exists():
+            with open(csv_path) as f:
+                for row in csv.DictReader(f):
+                    _ITEM_NAMES[int(row["Index"])] = row["Name"]
+    return _ITEM_NAMES.get(index, f"Unknown({index})")
+
+
+# ---------------------------------------------------------------------------
+# Kamiden gRPC-Web helpers (trade data from the indexer)
+# ---------------------------------------------------------------------------
+
+_KAMIDEN_URL = "https://api.prod.kamigotchi.io"
+
+
+def _proto_encode_varint(value: int) -> bytes:
+    r = []
+    while value > 127:
+        r.append((value & 0x7F) | 0x80)
+        value >>= 7
+    r.append(value)
+    return bytes(r)
+
+
+def _proto_encode_string_field(field_num: int, value: str) -> bytes:
+    tag = _proto_encode_varint((field_num << 3) | 2)
+    data = value.encode("utf-8")
+    return tag + _proto_encode_varint(len(data)) + data
+
+
+def _proto_encode_varint_field(field_num: int, value: int) -> bytes:
+    return _proto_encode_varint((field_num << 3) | 0) + _proto_encode_varint(
+        value
+    )
+
+
+def _proto_read_varint(data: bytes, offset: int):
+    result, shift = 0, 0
+    while offset < len(data):
+        b = data[offset]
+        offset += 1
+        result |= (b & 0x7F) << shift
+        if not (b & 0x80):
+            return result, offset
+        shift += 7
+    return None, offset
+
+
+def _proto_decode_fields(data: bytes) -> dict:
+    """Decode a flat protobuf message into {field_num: [(kind, value), ...]}."""
+    fields: dict = {}
+    offset = 0
+    while offset < len(data):
+        tag, offset = _proto_read_varint(data, offset)
+        if tag is None:
+            break
+        field_num, wire_type = tag >> 3, tag & 0x07
+        if wire_type == 0:
+            val, offset = _proto_read_varint(data, offset)
+            fields.setdefault(field_num, []).append(("varint", val))
+        elif wire_type == 2:
+            length, offset = _proto_read_varint(data, offset)
+            if length is None or offset + length > len(data):
+                break
+            val = data[offset : offset + length]
+            offset += length
+            fields.setdefault(field_num, []).append(("bytes", val))
+        elif wire_type == 1:
+            val = data[offset : offset + 8]
+            offset += 8
+            fields.setdefault(field_num, []).append(("fixed64", val))
+        elif wire_type == 5:
+            val = data[offset : offset + 4]
+            offset += 4
+            fields.setdefault(field_num, []).append(("fixed32", val))
+        else:
+            break
+    return fields
+
+
+def _proto_field_str(fields: dict, num: int) -> str:
+    if num in fields:
+        _, raw = fields[num][0]
+        if isinstance(raw, bytes):
+            return raw.decode("utf-8", errors="replace")
+    return ""
+
+
+def _proto_field_bytes(fields: dict, num: int) -> bytes:
+    if num in fields:
+        _, raw = fields[num][0]
+        if isinstance(raw, bytes):
+            return raw
+    return b""
+
+
+def _kamiden_grpc_call(method: str, body: bytes = b"") -> bytes:
+    """Make a gRPC-Web unary call to Kamiden and return the data payload."""
+    frame = b"\x00" + struct.pack(">I", len(body)) + body
+    resp = httpx.post(
+        f"{_KAMIDEN_URL}/{method}",
+        content=frame,
+        headers={
+            "Content-Type": "application/grpc-web+proto",
+            "Accept": "application/grpc-web+proto",
+            "X-Grpc-Web": "1",
+        },
+        timeout=30,
+    )
+    data = resp.content
+    off = 0
+    while off < len(data):
+        if off + 5 > len(data):
+            break
+        ft = data[off]
+        fl = struct.unpack(">I", data[off + 1 : off + 5])[0]
+        payload = data[off + 5 : off + 5 + fl]
+        if ft == 0 and len(payload) > 0:
+            return payload
+        off += 5 + fl
+    return b""
+
+
+def _parse_kamiden_trades(payload: bytes) -> list[dict]:
+    """Parse a Kamiden TradesResponse into a list of trade dicts.
+
+    Proto field mapping (reverse-engineered from Kamiden):
+      f1 = trade entity ID (decimal string)
+      f2 = maker account entity ID (decimal string)
+      f3 = counterparty entity ID (decimal string)
+      f4 = direction (bytes: 0x01 = buying items with MUSU)
+      f5 = MUSU amount (string)
+      f6 = item index (varint encoded in bytes field)
+      f7 = item quantity (string)
+      f8 = created_at unix timestamp (string)
+      f10 = executed_at unix timestamp (string)
+      f11 = completed_at unix timestamp (string)
+    """
+    trades = []
+    outer = _proto_decode_fields(payload)
+    for _, raw in outer.get(1, []):
+        if not isinstance(raw, bytes):
+            continue
+        f = _proto_decode_fields(raw)
+        # Decode item index from varint-encoded bytes in field 6
+        item_raw = _proto_field_bytes(f, 6)
+        if item_raw:
+            item_index, _ = _proto_read_varint(item_raw, 0)
+            item_index = item_index or 0
+        else:
+            item_index = 0
+
+        direction_raw = _proto_field_bytes(f, 4)
+        direction_val = (
+            int.from_bytes(direction_raw, "big") if direction_raw else 0
+        )
+
+        trade_entity_id = _proto_field_str(f, 1)
+        musu_amount = _proto_field_str(f, 5)
+        item_amount = _proto_field_str(f, 7)
+        executed_at = _proto_field_str(f, 10)
+        completed_at = _proto_field_str(f, 11)
+
+        # Determine status from timestamps
+        if completed_at and completed_at != "0":
+            status = "COMPLETED"
+        elif executed_at and executed_at != "0":
+            status = "EXECUTED"
+        else:
+            status = "PENDING"
+
+        trade_id_hex = hex(int(trade_entity_id)) if trade_entity_id else "0x0"
+        item_name = _get_item_name(item_index)
+        musu_int = int(musu_amount) if musu_amount else 0
+        qty_int = int(item_amount) if item_amount else 0
+
+        # Build human-readable summary
+        if direction_val == 1:
+            side = "BUY"
+            summary = f"Buying {qty_int:,}x {item_name} for {musu_int:,} MUSU"
+        else:
+            side = "SELL"
+            summary = f"Selling {qty_int:,}x {item_name} for {musu_int:,} MUSU"
+        if qty_int > 0 and musu_int > 0:
+            summary += f" ({musu_int / qty_int:.0f} MUSU/ea)"
+
+        trades.append(
+            {
+                "trade_id_hex": trade_id_hex,
+                "status": status,
+                "side": side,
+                "item_index": item_index,
+                "item_name": item_name,
+                "item_amount": qty_int,
+                "musu_amount": musu_int,
+                "unit_price": round(musu_int / qty_int) if qty_int > 0 else 0,
+                "summary": summary,
+                "created_at": _proto_field_str(f, 8) or None,
+                "executed_at": executed_at or None,
+                "completed_at": completed_at or None,
+            }
+        )
+    return trades
 
 
 # ---------------------------------------------------------------------------
@@ -517,6 +835,46 @@ async def get_npc_prices(account: str = "main") -> dict:
 
 
 @mcp.tool()
+async def get_killer_ranking(account: str = "main") -> dict:
+    """Top predator kamis ranked by kill count. Cached 1h.
+
+    Use this to identify the strongest predators in the game.
+    Cross-reference with get_kami_state to check their affinity,
+    violence, attack bonuses, and equipment.
+
+    Args:
+        account: Account label (any registered account works).
+    """
+    return await _api_get("/api/killer-ranking", account)
+
+
+@mcp.tool()
+async def get_leaderboard(leaderboard_type: str, account: str = "main") -> dict:
+    """Game leaderboards. Cached 20m.
+
+    Args:
+        leaderboard_type: One of 'harvest' or 'kill'.
+        account: Account label (any registered account works).
+    """
+    return await _api_get(f"/api/leaderboards/{leaderboard_type}", account)
+
+
+@mcp.tool()
+async def get_all_kamis(account: str = "main") -> dict:
+    """All kamis in the game with stats, affinities, bonuses. Cached 24h.
+
+    Returns every kami's violence, harmony, power, health, affinity (body/hand),
+    level, state, and bonuses. Use for predator threat modeling:
+    filter by high violence + attack bonuses to find dangerous predators,
+    then cross-reference affinity against your kamis' body type.
+
+    Args:
+        account: Account label (any registered account works).
+    """
+    return await _api_get("/api/playwright/kamis/all", account)
+
+
+@mcp.tool()
 async def get_nodes(account: str = "main") -> dict:
     """All harvest nodes: affinity, room, drops, level requirements. Cached 24h.
 
@@ -733,6 +1091,7 @@ def allocate_skills(
     entity_id = _kami_entity_id(kami_id)
     total_planned = sum(s["points"] for s in skill_plan)
     done = 0
+    failed = 0
     for skill in skill_plan:
         for _ in range(skill["points"]):
             try:
@@ -742,6 +1101,7 @@ def allocate_skills(
                 )
                 done += 1
             except Exception as e:
+                failed += 1
                 return {
                     "kami_id": kami_id,
                     "allocated": done,
@@ -883,6 +1243,393 @@ def unequip_item(kami_id: int, slot_type: str, account: str = "main") -> dict:
         _ABI_UNEQUIP,
         [_kami_entity_id(kami_id), slot_type],
     )
+
+
+# ---- On-chain: marketplace ----
+
+_ABI_LIST_KAMI = json.loads(
+    '[{"type":"function","name":"executeTyped",'
+    '"inputs":[{"name":"kamiIndex","type":"uint32"},'
+    '{"name":"price","type":"uint256"},'
+    '{"name":"expiry","type":"uint256"}],'
+    '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"}]'
+)
+
+
+@mcp.tool()
+def list_kami(
+    kami_id: int, price_eth: str, expiry: int = 0, account: str = "main"
+) -> dict:
+    """List a Kami for sale on KamiSwap. Kami must be RESTING and not soulbound.
+
+    The Kami stays in your wallet but enters LISTED state (can't harvest/move).
+    Uses the operator wallet.
+
+    Args:
+        kami_id: Kami token index (e.g. 45).
+        price_eth: Listing price as a decimal string in ETH (e.g. "0.1").
+        expiry: Expiration unix timestamp. 0 = no expiration.
+        account: Account label.
+    """
+    price_wei = int(float(price_eth) * 10**18)
+    if price_wei <= 0:
+        raise ValueError("Price must be > 0")
+    return _send_tx(
+        account,
+        "system.kamimarket.list",
+        _ABI_LIST_KAMI,
+        [kami_id, price_wei, expiry],
+    )
+
+
+# ---- On-chain: trading ----
+
+_ABI_TRADE_CREATE = json.loads(
+    '[{"type":"function","name":"executeTyped",'
+    '"inputs":[{"name":"buyIndices","type":"uint32[]"},'
+    '{"name":"buyAmts","type":"uint256[]"},'
+    '{"name":"sellIndices","type":"uint32[]"},'
+    '{"name":"sellAmts","type":"uint256[]"},'
+    '{"name":"targetID","type":"uint256"}],'
+    '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"}]'
+)
+
+_ABI_TRADE_CANCEL = json.loads(
+    '[{"type":"function","name":"executeTyped",'
+    '"inputs":[{"name":"tradeID","type":"uint256"}],'
+    '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"}]'
+)
+
+_ABI_TRADE_COMPLETE = json.loads(
+    '[{"type":"function","name":"executeTyped",'
+    '"inputs":[{"name":"tradeID","type":"uint256"}],'
+    '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"}]'
+)
+
+
+@mcp.tool()
+def get_account_trades(account: str = "main") -> dict:
+    """Show open and recently executed trades for this account.
+
+    Returns item names, quantities, MUSU amounts, unit prices, and status
+    for every active trade listing. Uses the Kamiden indexer for rich data
+    and on-chain dry-runs to detect EXECUTED trades ready for completion.
+
+    Args:
+        account: Account label.
+    """
+    acct = _get_account(account)
+    account_entity_id = str(int(acct.owner_addr, 16))
+
+    # --- Fetch open offers from Kamiden indexer (no auth required) ---
+    req = _proto_encode_string_field(
+        1, account_entity_id
+    ) + _proto_encode_varint_field(2, 500)
+
+    try:
+        payload = _kamiden_grpc_call(
+            "kamiden.KamidenService/GetOpenOffers", req
+        )
+        open_trades = _parse_kamiden_trades(payload) if payload else []
+    except Exception as e:
+        open_trades = []
+        indexer_error = str(e)
+    else:
+        indexer_error = None
+
+    # --- Check which open trades are actually EXECUTED (taker accepted) ---
+    # Dry-run complete() on-chain for each trade to detect EXECUTED status.
+    executed_ids: set[str] = set()
+    if acct.owner_key and open_trades:
+        try:
+            complete_sys = w3.eth.contract(
+                address=_resolve_system("system.trade.complete"),
+                abi=_ABI_TRADE_COMPLETE,
+            )
+            for t in open_trades:
+                try:
+                    te = int(t["trade_id_hex"], 16)
+                    complete_sys.functions.executeTyped(te).call(
+                        {"from": acct.owner_addr}
+                    )
+                    executed_ids.add(t["trade_id_hex"])
+                except Exception:
+                    pass
+        except Exception:
+            pass  # Can't resolve system — skip status check
+
+    # Also check trade history for EXECUTED-but-not-completed trades
+    executed_trades = []
+    try:
+        hist_payload = _kamiden_grpc_call(
+            "kamiden.KamidenService/GetTradeHistory", req
+        )
+        if hist_payload:
+            history = _parse_kamiden_trades(hist_payload)
+            for t in history:
+                if t["status"] == "EXECUTED":
+                    executed_trades.append(t)
+                    executed_ids.add(t["trade_id_hex"])
+    except Exception:
+        pass
+
+    # --- Update statuses and build result ---
+    pending = []
+    executed = []
+    for t in open_trades:
+        if t["trade_id_hex"] in executed_ids:
+            t["status"] = "EXECUTED"
+            t["action"] = "complete_trade"
+            executed.append(t)
+        else:
+            t["status"] = "PENDING"
+            t["action"] = "cancel_trade"
+            pending.append(t)
+
+    # Add any EXECUTED trades found only in history
+    open_ids = {t["trade_id_hex"] for t in open_trades}
+    for t in executed_trades:
+        if t["trade_id_hex"] not in open_ids:
+            t["action"] = "complete_trade"
+            executed.append(t)
+
+    # --- Summarize by price tier for readability ---
+    price_summary: dict[str, dict] = {}
+    for t in pending:
+        key = f"{t['item_name']}@{t['unit_price']}"
+        if key not in price_summary:
+            price_summary[key] = {
+                "item_name": t["item_name"],
+                "item_index": t["item_index"],
+                "side": t["side"],
+                "unit_price": t["unit_price"],
+                "total_qty": 0,
+                "total_musu": 0,
+                "count": 0,
+            }
+        price_summary[key]["total_qty"] += t["item_amount"]
+        price_summary[key]["total_musu"] += t["musu_amount"]
+        price_summary[key]["count"] += 1
+
+    result: dict = {
+        "account": account,
+        "pending": len(pending),
+        "executed": len(executed),
+        "total_open": len(pending) + len(executed),
+    }
+
+    if indexer_error:
+        result["indexer_error"] = indexer_error
+
+    if price_summary:
+        result["pending_summary"] = sorted(
+            price_summary.values(), key=lambda x: x["unit_price"]
+        )
+
+    if executed:
+        result["executed_trades"] = [
+            {
+                "trade_id_hex": t["trade_id_hex"],
+                "summary": t["summary"],
+                "action": "complete_trade",
+            }
+            for t in executed
+        ]
+
+    result["trades"] = [
+        {
+            "trade_id_hex": t["trade_id_hex"],
+            "status": t["status"],
+            "action": t.get("action"),
+            "summary": t["summary"],
+            "item_name": t["item_name"],
+            "item_index": t["item_index"],
+            "item_amount": t["item_amount"],
+            "musu_amount": t["musu_amount"],
+            "unit_price": t["unit_price"],
+            "side": t["side"],
+        }
+        for t in pending + executed
+    ]
+
+    return result
+
+
+@mcp.tool()
+def complete_trade(trade_id: str, account: str = "main") -> dict:
+    """Complete an executed trade. Called by the maker (owner wallet).
+
+    The trade must be in EXECUTED status (taker already accepted).
+    Items are distributed to both parties.
+
+    Args:
+        trade_id: Trade entity ID (decimal or hex string starting with 0x).
+        account: Account label.
+    """
+    trade_int = int(trade_id, 16) if trade_id.startswith("0x") else int(trade_id)
+    return _send_tx_owner(
+        account, "system.trade.complete", _ABI_TRADE_COMPLETE, [trade_int]
+    )
+
+
+@mcp.tool()
+def complete_all_trades(account: str = "main") -> dict:
+    """Find and complete all EXECUTED trades for this account.
+
+    Discovers trades via on-chain components, filters for EXECUTED status,
+    and completes each one. Only trades where this account is the maker
+    can be completed.
+
+    Args:
+        account: Account label.
+    """
+    discovery = get_account_trades(account)
+    trades = discovery.get("trades", [])
+
+    executed = [t for t in trades if t.get("status") == "EXECUTED"]
+    if not executed:
+        return {
+            "account": account,
+            "total_found": len(trades),
+            "executed_found": 0,
+            "message": "No EXECUTED trades to complete",
+        }
+
+    results = []
+    for t in executed:
+        trade_int = int(t["trade_id_hex"], 16)
+        try:
+            r = _send_tx_owner(
+                account, "system.trade.complete", _ABI_TRADE_COMPLETE,
+                [trade_int],
+            )
+            results.append({
+                "trade_id": t["trade_id_hex"],
+                **r,
+            })
+        except Exception as e:
+            results.append({
+                "trade_id": t["trade_id_hex"],
+                "status": "error",
+                "error": str(e),
+            })
+
+    succeeded = sum(1 for r in results if r.get("status") == "success")
+    return {
+        "account": account,
+        "total_found": len(trades),
+        "executed_found": len(executed),
+        "completed": succeeded,
+        "failed": len(executed) - succeeded,
+        "results": results,
+    }
+
+
+@mcp.tool()
+def create_trade(
+    sell_item: int,
+    sell_amount: int,
+    buy_item: int,
+    buy_amount: int,
+    account: str = "main",
+) -> dict:
+    """Create a trade offer on the in-game marketplace. Uses owner wallet.
+
+    One side must be MUSU (item index 1). Sell items are escrowed immediately.
+    The trade is open to anyone (no target restriction).
+
+    Common patterns:
+      Sell items for MUSU: sell_item=<item>, buy_item=1, buy_amount=<musu>
+      Buy items with MUSU: sell_item=1, sell_amount=<musu>, buy_item=<item>
+
+    Args:
+        sell_item: Item index you are offering (e.g. 1 for MUSU, 11312 for Honeydew).
+        sell_amount: Quantity to offer.
+        buy_item: Item index you want in return.
+        buy_amount: Quantity you want.
+        account: Account label.
+    """
+    if sell_item != 1 and buy_item != 1:
+        raise ValueError(
+            "One side of the trade must be MUSU (item index 1). "
+            "Direct item-for-item barter is not supported."
+        )
+    return _send_tx_owner(
+        account,
+        "system.trade.create",
+        _ABI_TRADE_CREATE,
+        [[buy_item], [buy_amount], [sell_item], [sell_amount], 0],
+    )
+
+
+@mcp.tool()
+def cancel_trade(trade_id: str, account: str = "main") -> dict:
+    """Cancel a pending trade. Returns escrowed items to inventory. Owner wallet.
+
+    Only the maker can cancel, and only while the trade is in PENDING status.
+
+    Args:
+        trade_id: Trade entity ID (decimal or hex string starting with 0x).
+        account: Account label.
+    """
+    trade_int = int(trade_id, 16) if trade_id.startswith("0x") else int(trade_id)
+    return _send_tx_owner(
+        account, "system.trade.cancel", _ABI_TRADE_CANCEL, [trade_int]
+    )
+
+
+# ---- On-chain: batch harvest stop ----
+
+_ABI_HARVEST_STOP_BATCH = json.loads(
+    '[{"type":"function","name":"executeBatchedAllowFailure",'
+    '"inputs":[{"name":"ids","type":"uint256[]"}],'
+    '"outputs":[{"type":"bytes[]"}],"stateMutability":"nonpayable"}]'
+)
+
+
+@mcp.tool()
+def stop_harvest_batch(
+    kami_ids: list[int], account: str = "main"
+) -> dict:
+    """Stop harvests for multiple kamis in one transaction. Collects rewards automatically.
+
+    Uses executeBatchedAllowFailure — skips kamis that aren't harvesting
+    instead of reverting the entire batch. Max ~10 per batch recommended.
+
+    Args:
+        kami_ids: List of kami token indices (e.g. [45, 46, 47]).
+        account: Account label.
+    """
+    harvest_ids = [
+        _harvest_entity_id(_kami_entity_id(kid)) for kid in kami_ids
+    ]
+
+    acct = _get_account(account)
+    addr = _resolve_system("system.harvest.stop")
+    contract = w3.eth.contract(address=addr, abi=_ABI_HARVEST_STOP_BATCH)
+    fn = contract.functions.executeBatchedAllowFailure(harvest_ids)
+
+    tx_params = {
+        "from": acct.operator_addr,
+        "chainId": CHAIN_ID,
+        "nonce": w3.eth.get_transaction_count(acct.operator_addr),
+        **_GAS_PRICE,
+    }
+
+    built = fn.build_transaction(tx_params)
+    signed = w3.eth.account.sign_transaction(built, private_key=acct.operator_key)
+    tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+    receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+
+    return {
+        "tx_hash": "0x" + receipt.transactionHash.hex(),
+        "status": "success" if receipt.status == 1 else "reverted",
+        "block": receipt.blockNumber,
+        "gas_used": receipt.gasUsed,
+        "account": account,
+        "kami_ids": kami_ids,
+        "count": len(kami_ids),
+    }
 
 
 # ---------------------------------------------------------------------------
