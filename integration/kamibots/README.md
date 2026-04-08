@@ -426,12 +426,25 @@ Response:
 | Endpoint | Returns | Bonuses | Harvest Info | Cache |
 |---|---|---|---|---|
 | `GET /api/playwright/kami/:kamiId/` | Full: stats, harvest, skills, traits, bonuses, progress | yes | yes | — |
-| `GET /api/playwright/kami/:kamiId/slim` | Slim: stats, harvest, skills, bonuses | yes | yes | — |
+| `GET /api/playwright/kami/:kamiId/slim` | Slim: stats, harvest, skills, bonuses (no traits/affinity) | yes | yes | — |
 | `GET /api/playwright/kami/:kamiId/state` | State string only (HARVESTING, RESTING, etc.) | no | no | — |
+| `GET /api/playwright/kamis/all` | All kamis in game: index, name, state, image (basic only) | no | no | 24h |
 | `GET /api/kami/:kamiId` | On-chain basic: name, HP, room, stats, state | no | no | — |
 
 **Always prefer playwright endpoints.** They return trait-based bonuses
-that affect harvest rates, combat thresholds, recovery speed, cooldowns:
+that affect harvest rates, combat thresholds, recovery speed, cooldowns.
+
+**Slim vs Full**: the slim endpoint omits `traits` (body/hand affinity,
+trait names, per-trait stats). Use full endpoint when you need affinity
+data (e.g., predator threat assessment). Slim is lighter for routine
+stat checks.
+
+**All kamis**: the `/playwright/kamis/all` endpoint returns basic
+listing data (index, name, state) for every kami in the game. It does
+NOT include stats, bonuses, or affinity. Use it to enumerate kami IDs,
+then query individual kamis for details. Cached 24h.
+
+Bonuses returned by playwright endpoints:
 
 | Bonus | Affects |
 |---|---|
