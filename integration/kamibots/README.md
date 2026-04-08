@@ -374,6 +374,49 @@ GET /api/strategies/:containerId/logs?tail=30
 GET /api/agent/strategies
 ```
 
+Response:
+```json
+{
+  "strategies": [
+    {
+      "id": "uuid-string",
+      "kami_id": "45",
+      "strategy_type": "harvestAndRest",
+      "status": "ACTIVE",
+      "config": { ... },
+      "vm_ip": "137.184.149.248",
+      "created_at": "2026-04-01T12:00:00Z"
+    }
+  ]
+}
+```
+
+> `status` is normalized to uppercase (`ACTIVE`, `PAUSED`, etc.) for
+> consistency with other strategy endpoints. `config` and `vm_ip` are
+> enriched from container records when available, and may be `null` if
+> the container record was cleaned up.
+
+### Get guild members
+
+Returns all guild and team member account names. Useful for building a
+dynamic friendly list (e.g. bodyguard `friendAccountNames`).
+**Restricted to GUILD and TEAM tier.**
+
+```
+GET /api/agent/guild/members
+X-Agent-Key: kamibots_<key>
+```
+
+Response:
+```json
+{
+  "members": ["player1", "player2", "player3"]
+}
+```
+
+> Use this to keep your bodyguard strategy's friend list up to date
+> without hardcoding names.
+
 ---
 
 ## 6. State Read Endpoints
