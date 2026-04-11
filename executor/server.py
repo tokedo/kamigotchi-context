@@ -74,7 +74,6 @@ _SYSTEMS_COMPONENT_ABI = json.loads(
 )
 _world = w3.eth.contract(address=WORLD_ADDRESS, abi=_WORLD_ABI)
 _system_cache: dict[str, str] = {}
-_component_cache: dict[str, str] = {}
 
 
 def _resolve_system(system_id: str) -> str:
@@ -91,22 +90,6 @@ def _resolve_system(system_id: str) -> str:
         )
         _system_cache[system_id] = addr
     return _system_cache[system_id]
-
-
-def _resolve_component(component_id: str) -> str:
-    """Resolve component ID string to on-chain contract address (cached)."""
-    if component_id not in _component_cache:
-        h = int.from_bytes(Web3.keccak(text=component_id), "big")
-        cc_addr = _world.functions.components().call()
-        cc = w3.eth.contract(address=cc_addr, abi=_SYSTEMS_COMPONENT_ABI)
-        entities = cc.functions.getEntitiesWithValue(h).call()
-        if not entities:
-            raise ValueError(f"Component not found on-chain: {component_id}")
-        addr = Web3.to_checksum_address(
-            "0x" + hex(entities[0])[2:].zfill(40)[-40:]
-        )
-        _component_cache[component_id] = addr
-    return _component_cache[component_id]
 
 
 def _kami_entity_id(kami_index: int) -> int:
