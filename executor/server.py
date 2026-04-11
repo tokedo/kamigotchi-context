@@ -14,6 +14,7 @@ Architecture:
   Claude Code (brain) --MCP--> executor (muscle) ---> Kamibots API / Yominet RPC
 """
 
+import asyncio
 import csv
 import json
 import os
@@ -27,6 +28,8 @@ from dotenv import load_dotenv, set_key
 from eth_account.messages import encode_defunct
 from mcp.server.fastmcp import FastMCP
 from web3 import Web3
+
+import rooms_graph
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -589,6 +592,246 @@ async def _api_get(path: str, account: str) -> dict:
         return r.json()
 
 
+_api_get_account_shape_logged = False
+
+
+async def _api_get_account(account: str = "main") -> dict:
+    """GET /api/accounts/:address — full account state.
+
+    Returns the raw JSON dict (inventory, kamis, stamina, stats, room).
+    Cached 15s upstream. Prints the top-level response keys on the first
+    call of each process so the shape is easy to inspect.
+    """
+    global _api_get_account_shape_logged
+    acct = _get_account(account)
+    raw = await _api_get(f"/api/accounts/{acct.operator_addr}", account)
+    if not _api_get_account_shape_logged and isinstance(raw, dict):
+        print(
+            f"[_api_get_account] first response keys: {sorted(raw.keys())}"
+        )
+        _api_get_account_shape_logged = True
+    return raw
+
+
+def _stat_to_current(s) -> tuple[int | None, int, int | None]:
+    """Pull (current, max, lastActionTs) out of a stat struct or scalar."""
+    if isinstance(s, (int, float)):
+        return int(s), 100, None
+    if not isinstance(s, dict):
+        return None, 100, None
+    cur = s.get("sync")
+    if cur is None:
+        cur = s.get("current")
+    if cur is None:
+        cur = s.get("value")
+    total = s.get("total") or s.get("max") or 100
+    last = s.get("lastActionTs") or s.get("lastTimestamp") or s.get("last")
+    try:
+        cur_int = int(cur) if cur is not None else None
+        total_int = int(total) if total is not None else 100
+        last_int = int(last) if last is not None else None
+    except (TypeError, ValueError):
+        return None, 100, None
+    return cur_int, total_int, last_int
+
+
+def _extract_account_state(raw: dict) -> dict:
+    """Defensive extractor for /api/accounts/:address JSON.
+
+    Tuned to the observed Kamibots shape:
+      - `roomIndex` (int)
+      - `stamina` = Stat struct {base, shift, boost, sync, rate, total}
+      - `inventories` (plural!) = [{item: {index, name, ...}, balance}, ...]
+      - `time` = {last, action, creation}
+
+    Falls back to alternate field names so we don't crash if the API
+    changes. Applies lazy-sync stamina math from time.last.
+    """
+    if not isinstance(raw, dict):
+        return {"room": None, "stamina": None, "stamina_max": 100, "inventory": []}
+
+    now = int(time.time())
+
+    # --- Room ---
+    room = None
+    for key in ("roomIndex", "room_index", "currentRoom", "currentRoomIndex"):
+        v = raw.get(key)
+        if isinstance(v, int):
+            room = v
+            break
+    if room is None:
+        r = raw.get("room")
+        if isinstance(r, dict):
+            room = r.get("index") or r.get("id") or r.get("roomIndex")
+        elif isinstance(r, int):
+            room = r
+
+    # --- Stamina ---
+    stamina: int | None = None
+    stamina_max = 100
+
+    stamina_raw = raw.get("stamina")
+    if stamina_raw is not None:
+        stamina, stamina_max, _ = _stat_to_current(stamina_raw)
+
+    if stamina is None:
+        stats = raw.get("stats")
+        if isinstance(stats, dict):
+            stamina, stamina_max, _ = _stat_to_current(stats.get("stamina"))
+
+    # Lazy-sync anchor: prefer top-level time.last (API sync time) over
+    # time.action (last game action). Apply regen forward to `now`.
+    last_sync_ts: int | None = None
+    time_obj = raw.get("time")
+    if isinstance(time_obj, dict):
+        for key in ("last", "action"):
+            v = time_obj.get(key)
+            if isinstance(v, (int, float)) and v > 1_000_000_000:
+                last_sync_ts = int(v)
+                break
+    if last_sync_ts is None:
+        for key in ("lastActionTs", "lastActionTimestamp", "lastTimestamp"):
+            v = raw.get(key)
+            if isinstance(v, (int, float)) and v > 1_000_000_000:
+                last_sync_ts = int(v)
+                break
+
+    if stamina is not None and last_sync_ts:
+        elapsed = max(0, now - last_sync_ts)
+        recovery = elapsed // 60
+        stamina = min(stamina_max, stamina + recovery)
+
+    # --- Inventory ---
+    # Preferred key is `inventories` (plural). Fall back to `inventory`.
+    inv_raw = raw.get("inventories")
+    if not isinstance(inv_raw, list):
+        inv_raw = raw.get("inventory")
+    inventory: list[dict] = []
+    if isinstance(inv_raw, list):
+        for entry in inv_raw:
+            if not isinstance(entry, dict):
+                continue
+            # Nested shape: {item: {index, name, ...}, balance}
+            inner = entry.get("item")
+            idx = None
+            name = ""
+            if isinstance(inner, dict):
+                idx = inner.get("index") or inner.get("itemIndex")
+                name = inner.get("name", "")
+            if idx is None:
+                # Flat shape fallback
+                idx = (
+                    entry.get("itemIndex")
+                    or entry.get("index")
+                    or entry.get("itemId")
+                    or entry.get("id")
+                )
+                if not name:
+                    name = entry.get("name", "")
+            bal = entry.get("balance")
+            if bal is None:
+                bal = (
+                    entry.get("amount")
+                    or entry.get("quantity")
+                    or entry.get("count")
+                )
+            if idx is None or bal is None:
+                continue
+            try:
+                inventory.append(
+                    {
+                        "itemIndex": int(idx),
+                        "balance": int(bal),
+                        "name": name or "",
+                    }
+                )
+            except (TypeError, ValueError):
+                continue
+
+    return {
+        "room": room,
+        "stamina": stamina,
+        "stamina_max": int(stamina_max) if stamina_max else 100,
+        "inventory": inventory,
+    }
+
+
+# --- SP+ item catalog for travel_to_room -----------------------------------
+
+_SP_ITEMS: list[dict] | None = None
+
+
+def _load_sp_items() -> list[dict]:
+    """Return the list of Account SP+ items from catalogs/items.csv.
+
+    Each entry: {id, sp, not_tradable, name}. Cached after first call.
+    """
+    global _SP_ITEMS
+    if _SP_ITEMS is not None:
+        return _SP_ITEMS
+    items: list[dict] = []
+    csv_path = _REPO / "catalogs" / "items.csv"
+    if csv_path.exists():
+        with open(csv_path) as f:
+            for row in csv.DictReader(f):
+                if row.get("For", "").strip() != "Account":
+                    continue
+                effects = row.get("Effects", "").strip()
+                if not effects.startswith("SP+"):
+                    continue
+                try:
+                    sp = int(effects[3:])
+                except ValueError:
+                    continue
+                try:
+                    idx = int(row["Index"])
+                except (KeyError, ValueError):
+                    continue
+                items.append(
+                    {
+                        "id": idx,
+                        "sp": sp,
+                        "not_tradable": "NOT_TRADABLE"
+                        in row.get("Flags", ""),
+                        "name": row.get("Name", ""),
+                    }
+                )
+    _SP_ITEMS = items
+    return items
+
+
+def _pick_sp_item(
+    inventory_balances: dict[int, int], deficit: int
+) -> dict | None:
+    """Pick the smallest SP+ item whose gain covers min(deficit, 5).
+
+    deficit = stamina_needed_for_remainder - current_stamina.
+    Returns None if no usable item is available. Prefers NOT_TRADABLE
+    items within a size tier (tiebreaker) — they're harder to sell so
+    cheaper to burn.
+    """
+    sp_items = _load_sp_items()
+    available = [
+        it for it in sp_items if inventory_balances.get(it["id"], 0) > 0
+    ]
+    if not available:
+        return None
+
+    # We only need enough for the next hop, not the whole remainder.
+    target = min(max(deficit, 0), 5)
+    if target == 0:
+        target = 5  # we're about to take at least one 5-stamina hop
+
+    meeting = [it for it in available if it["sp"] >= target]
+    if meeting:
+        meeting.sort(key=lambda it: (it["sp"], 0 if it["not_tradable"] else 1))
+        return meeting[0]
+
+    # No item covers the threshold — pick the biggest to make progress.
+    available.sort(key=lambda it: (-it["sp"], 0 if it["not_tradable"] else 1))
+    return available[0]
+
+
 async def _api_post(path: str, body: dict | None, account: str) -> dict:
     async with httpx.AsyncClient(timeout=30) as c:
         r = await c.post(
@@ -763,6 +1006,49 @@ async def get_kami_state_slim(kami_id: int, account: str = "main") -> dict:
         account: Account label (for context).
     """
     return await _api_get(f"/api/playwright/kami/{kami_id}/slim", account)
+
+
+@mcp.tool()
+async def get_kamis_progress_batch(
+    kami_ids: list[int], account: str = "main"
+) -> dict:
+    """Compact level/XP/skills summary for many kamis in one call.
+
+    Fetches the full playwright state concurrently and returns only the
+    fields needed for level-up / skill-allocation planning. Avoids
+    blowing up the agent's context with traits/config blobs.
+
+    Args:
+        kami_ids: List of kami token indices.
+        account: Account label.
+    """
+
+    async def _one(kid: int) -> dict:
+        try:
+            data = await _api_get(f"/api/playwright/kami/{kid}/", account)
+        except Exception as exc:  # noqa: BLE001
+            return {"index": kid, "error": str(exc)}
+        stats = data.get("stats", {}) or {}
+        health = stats.get("health", {}) or {}
+        progress = data.get("progress", {}) or {}
+        skills = data.get("skills", {}) or {}
+        return {
+            "index": kid,
+            "name": data.get("name"),
+            "state": data.get("state"),
+            "level": progress.get("level"),
+            "xp": progress.get("experience"),
+            "unspent_points": skills.get("points"),
+            "hp_base": health.get("base"),
+            "hp_total": health.get("total"),
+            "investments": [
+                {"index": inv.get("index"), "points": inv.get("points")}
+                for inv in (skills.get("investments") or [])
+            ],
+        }
+
+    results = await asyncio.gather(*(_one(k) for k in kami_ids))
+    return {"kamis": results, "count": len(results)}
 
 
 @mcp.tool()
@@ -941,11 +1227,20 @@ async def start_strategy(
 
 
 @mcp.tool()
-async def stop_strategy(kami_id: str, account: str = "main") -> dict:
+async def stop_strategy(
+    kami_id: str, permanent: bool = True, account: str = "main"
+) -> dict:
     """Stop the running strategy for a kami.
 
+    For multi-kami strategies (auto_v2, rest_v3, bodyguard), you MUST pass
+    kami_indices[0] (or guard_kami_indices[0]) from GET /api/agent/strategies.
+    Secondary kami indices will return 404.
+
     Args:
-        kami_id: Kami token index (e.g. "45") or craft strategy ID (e.g. "craft_zpki5vkc").
+        kami_id: Primary kami token index (e.g. "45", kami_indices[0] for
+            multi-kami) or craft strategy ID (e.g. "craft_zpki5vkc").
+        permanent: If True (default), permanently deletes the strategy and
+            frees slots. If False, marks as unlaunched (paused, can relaunch).
         account: Account label.
     """
     acct = _get_account(account)
@@ -954,8 +1249,9 @@ async def stop_strategy(kami_id: str, account: str = "main") -> dict:
             f"No privy_id for account '{account}'. "
             f"Call register_kamibots(account='{account}') first."
         )
+    qs = "?permanent=true" if permanent else ""
     return await _api_delete(
-        f"/api/strategies/kami/{kami_id}",
+        f"/api/strategies/kami/{kami_id}{qs}",
         {"keyData": {"privy_id": acct.privy_id}},
         account,
     )
@@ -998,11 +1294,19 @@ _ABI_UNEQUIP = json.loads(
     '"inputs":[{"name":"kamiID","type":"uint256"},{"name":"slotType","type":"string"}],'
     '"outputs":[{"type":"uint32"}],"stateMutability":"nonpayable"}]'
 )
+_ABI_ACCOUNT_USE = json.loads(
+    '[{"type":"function","name":"executeTyped",'
+    '"inputs":[{"name":"itemIndex","type":"uint32"},{"name":"amt","type":"uint256"}],'
+    '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"}]'
+)
 
 
 @mcp.tool()
 def move_to_room(room_index: int, account: str = "main") -> dict:
     """Move the account to a different room. Costs stamina.
+
+    Single-hop escape hatch. For multi-hop travel prefer travel_to_room —
+    it pathfinds and manages stamina automatically.
 
     Args:
         room_index: Target room number (1-70). See catalogs/rooms.csv.
@@ -1011,6 +1315,275 @@ def move_to_room(room_index: int, account: str = "main") -> dict:
     return _send_tx(
         account, "system.account.move", _ABI_MOVE, [room_index], gas_limit=1_200_000
     )
+
+
+_SP_ITEM_IDS = {21201, 21202, 21203, 21204, 21205, 21206}
+
+
+@mcp.tool()
+async def travel_to_room(
+    target_room: int,
+    account: str = "main",
+    use_items: bool = True,
+    dry_run: bool = False,
+) -> dict:
+    """Travel to a target room via the shortest path, consuming stamina
+    and optionally using SP+ items to extend range.
+
+    Replaces manual multi-hop pathfinding. BFS runs over the static room
+    graph (catalogs/rooms.csv) and plans item inserts when stamina would
+    otherwise run out. Each hop is its own on-chain tx (no multicall).
+
+    Args:
+        target_room: Destination room index. See catalogs/rooms.csv.
+        account: Account label.
+        use_items: If True, consume SP+ items from inventory when needed
+            to reach the target. If False, stops when stamina is
+            insufficient and returns a partial result.
+        dry_run: If True, return the plan without executing any tx.
+    """
+    # --- Read current state ---
+    try:
+        raw = await _api_get_account(account)
+    except Exception as e:
+        return {"error": f"failed to read account state: {e}"}
+
+    state = _extract_account_state(raw)
+    current_room = state.get("room")
+    stamina = state.get("stamina")
+    stamina_max = state.get("stamina_max") or 100
+    inv_list = state.get("inventory") or []
+
+    if current_room is None:
+        return {
+            "error": "could not determine current room from API response",
+            "details": {
+                "raw_keys": sorted(raw.keys()) if isinstance(raw, dict) else [],
+            },
+        }
+    if stamina is None:
+        return {
+            "error": "could not determine current stamina from API response",
+            "details": {
+                "current_room": current_room,
+                "raw_keys": sorted(raw.keys()) if isinstance(raw, dict) else [],
+            },
+        }
+
+    # --- No-op ---
+    if current_room == target_room:
+        return {
+            "reached_target": True,
+            "noop": True,
+            "final_room": current_room,
+            "path": [current_room],
+            "hops": 0,
+        }
+
+    # --- Pathfind ---
+    try:
+        path = rooms_graph.shortest_path(current_room, target_room)
+    except ValueError as e:
+        return {
+            "error": str(e),
+            "details": {
+                "current_room": current_room,
+                "target_room": target_room,
+            },
+        }
+
+    needed = rooms_graph.move_cost(path)
+
+    # --- Simulate plan (hop-by-hop, insert items when necessary) ---
+    sp_inventory: dict[int, int] = {}
+    if use_items:
+        for item in inv_list:
+            iid = item["itemIndex"]
+            if iid in _SP_ITEM_IDS:
+                sp_inventory[iid] = sp_inventory.get(iid, 0) + item["balance"]
+
+    plan: list[dict] = []
+    items_planned: list[int] = []
+    sim_stamina = stamina
+    sim_room = current_room
+    remaining = list(path[1:])
+    partial_reason: str | None = None
+
+    while remaining:
+        nxt = remaining[0]
+        if sim_stamina >= 5:
+            plan.append({"type": "move", "room": nxt})
+            sim_stamina -= 5
+            sim_room = nxt
+            remaining.pop(0)
+            continue
+
+        if not use_items:
+            partial_reason = "insufficient stamina (use_items=False)"
+            break
+
+        deficit = 5 * len(remaining) - sim_stamina
+        choice = _pick_sp_item(sp_inventory, deficit)
+        if choice is None:
+            partial_reason = "insufficient stamina and no SP+ items available"
+            break
+
+        plan.append({"type": "item", "id": choice["id"], "sp": choice["sp"]})
+        items_planned.append(choice["id"])
+        sp_inventory[choice["id"]] -= 1
+        if sp_inventory[choice["id"]] == 0:
+            del sp_inventory[choice["id"]]
+        new_stamina = min(stamina_max, sim_stamina + choice["sp"])
+        if new_stamina == sim_stamina:
+            # Item added nothing (at cap already) — bail to avoid a loop.
+            partial_reason = "item had no effect (stamina at cap)"
+            break
+        sim_stamina = new_stamina
+
+    plan_reaches_target = sim_room == target_room and partial_reason is None
+
+    # --- dry_run: return plan without executing ---
+    if dry_run:
+        items_to_use: dict[int, int] = {}
+        for iid in items_planned:
+            items_to_use[iid] = items_to_use.get(iid, 0) + 1
+        rem_path: list[int] = []
+        if not plan_reaches_target:
+            # rooms still ahead of sim_room
+            try:
+                idx = path.index(sim_room)
+                rem_path = path[idx:]
+            except ValueError:
+                rem_path = remaining.copy()
+        result = {
+            "dry_run": True,
+            "path": path,
+            "hops": len(path) - 1,
+            "plan": plan,
+            "stamina_needed": needed,
+            "stamina_have": stamina,
+            "stamina_after_plan": sim_stamina,
+            "feasible": plan_reaches_target,
+            "items_to_use": [
+                {"item_id": iid, "count": c} for iid, c in items_to_use.items()
+            ],
+            "final_room_if_executed": sim_room,
+        }
+        if not plan_reaches_target:
+            result["remainder"] = rem_path
+            result["partial_reason"] = partial_reason
+        return result
+
+    # --- Execute plan step by step ---
+    moves_executed = 0
+    items_used_counts: dict[int, int] = {}
+    gas_used = 0
+    final_room = current_room
+    exec_error: str | None = None
+    # Track stamina locally — avoids the 15s Kamibots API cache lag
+    # that otherwise returns stale values right after execution.
+    live_stamina = stamina
+
+    for step in plan:
+        if step["type"] == "move":
+            try:
+                r = _send_tx_retry(
+                    account,
+                    "system.account.move",
+                    _ABI_MOVE,
+                    [step["room"]],
+                    gas_limit=1_200_000,
+                )
+            except Exception as e:
+                exec_error = (
+                    f"hop {moves_executed + 1} to room {step['room']} "
+                    f"reverted: likely gate or adjacency issue ({e})"
+                )
+                break
+            if r.get("status") != "success":
+                exec_error = (
+                    f"hop {moves_executed + 1} to room {step['room']} "
+                    f"status={r.get('status')}"
+                )
+                break
+            gas_used += r.get("gas_used", 0)
+            final_room = step["room"]
+            moves_executed += 1
+            live_stamina = max(0, live_stamina - 5)
+        else:  # item
+            try:
+                r = _send_tx_retry(
+                    account,
+                    "system.account.use.item",
+                    _ABI_ACCOUNT_USE,
+                    [step["id"], 1],
+                )
+            except Exception as e:
+                exec_error = f"item {step['id']} use reverted: {e}"
+                break
+            if r.get("status") != "success":
+                exec_error = f"item {step['id']} use status={r.get('status')}"
+                break
+            gas_used += r.get("gas_used", 0)
+            items_used_counts[step["id"]] = (
+                items_used_counts.get(step["id"], 0) + 1
+            )
+            live_stamina = min(stamina_max, live_stamina + step["sp"])
+
+    stamina_after = live_stamina
+
+    items_used_list = [
+        {"item_id": k, "count": v} for k, v in items_used_counts.items()
+    ]
+
+    reached = (
+        exec_error is None
+        and not partial_reason
+        and final_room == target_room
+    )
+
+    if reached:
+        return {
+            "reached_target": True,
+            "path": path,
+            "hops": len(path) - 1,
+            "moves_executed": moves_executed,
+            "items_used": items_used_list,
+            "gas_used": gas_used,
+            "stamina_remaining": stamina_after,
+            "final_room": final_room,
+        }
+
+    # Partial result
+    try:
+        rem_idx = path.index(final_room)
+        remainder_path = path[rem_idx:]
+    except ValueError:
+        remainder_path = []
+    stamina_needed_for_remainder = 5 * max(0, len(remainder_path) - 1)
+    eta_min = max(
+        0,
+        stamina_needed_for_remainder
+        - (stamina_after if stamina_after is not None else 0),
+    )
+    return {
+        "reached_target": False,
+        "path": path,
+        "final_room": final_room,
+        "moves_executed": moves_executed,
+        "items_used": items_used_list,
+        "gas_used": gas_used,
+        "stamina_remaining": stamina_after,
+        "remainder": remainder_path,
+        "stamina_needed_for_remainder": stamina_needed_for_remainder,
+        "eta_to_recover_min": eta_min,
+        "suggestion": (
+            "Acquire SP+ items (21201-21206) or wait "
+            f"{eta_min} min for stamina to regen."
+        ),
+        "partial_reason": partial_reason or exec_error,
+        "error": exec_error,
+    }
 
 
 @mcp.tool()
@@ -1171,6 +1744,104 @@ async def level_to(
 
 
 @mcp.tool()
+async def level_and_allocate_batch(
+    targets: list[dict], account: str = "main"
+) -> dict:
+    """Batch level-up and skill allocation across many kamis in one call.
+
+    For each target, optionally levels the kami to `target_level`, then
+    optionally spends the given `skill_plan`. Use this instead of firing
+    N parallel `level_to` + N parallel `allocate_skills` calls — it is one
+    MCP round-trip and one compact result blob.
+
+    Failures are captured per-kami: one kami's error does not abort the
+    rest of the batch. Nonce conflicts are handled by `_send_tx_retry`.
+
+    Args:
+        targets: List of per-kami plans. Each item is a dict:
+            {
+                "kami_id": int,
+                "target_level": int (optional),
+                "skill_plan": [{"skill_index": int, "points": int}, ...] (optional)
+            }
+            At least one of target_level / skill_plan must be present.
+        account: Account label.
+
+    Returns:
+        {
+            "count": N,
+            "ok": count of fully-successful kamis,
+            "results": [
+                {
+                    "kami_id": ...,
+                    "leveled": {"from": int, "to": int, "target": int} (if requested),
+                    "allocated": {"done": int, "planned": int} (if requested),
+                    "error": str (if any phase failed),
+                },
+                ...
+            ],
+        }
+    """
+    results = []
+    for t in targets:
+        kid = t.get("kami_id")
+        target_level = t.get("target_level")
+        skill_plan = t.get("skill_plan")
+        row: dict = {"kami_id": kid}
+
+        # Level-up phase
+        if target_level is not None:
+            try:
+                state = await _api_get(f"/api/playwright/kami/{kid}/", account)
+                current = state["progress"]["level"]
+                levels_needed = max(0, target_level - current)
+                entity_id = _kami_entity_id(kid)
+                done = 0
+                for _ in range(levels_needed):
+                    r = _send_tx_retry(
+                        account, "system.kami.level", _ABI_LEVEL, [entity_id],
+                    )
+                    if r["status"] != "success":
+                        break
+                    done += 1
+                row["leveled"] = {
+                    "from": current,
+                    "to": current + done,
+                    "target": target_level,
+                }
+                if current + done < target_level:
+                    row["error"] = f"level stopped at {current + done}"
+                    results.append(row)
+                    continue
+            except Exception as e:
+                row["error"] = f"level: {e}"
+                results.append(row)
+                continue
+
+        # Skill allocation phase
+        if skill_plan:
+            try:
+                entity_id = _kami_entity_id(kid)
+                total_planned = sum(s["points"] for s in skill_plan)
+                allocated = 0
+                for skill in skill_plan:
+                    for _ in range(skill["points"]):
+                        _send_tx_retry(
+                            account, "system.skill.upgrade", _ABI_SKILL,
+                            [entity_id, skill["skill_index"]],
+                        )
+                        allocated += 1
+                row["allocated"] = {"done": allocated, "planned": total_planned}
+            except Exception as e:
+                row["error"] = f"skill: {e}"
+
+        results.append(row)
+
+    ok = sum(1 for r in results if "error" not in r)
+    return {"count": len(results), "ok": ok, "results": results}
+
+
+@mcp.tool()
 def use_item_batch(
     kami_id: int, item_id: int, count: int, account: str = "main"
 ) -> dict:
@@ -1209,6 +1880,30 @@ def use_item_batch(
         "planned": count,
         "success": True,
     }
+
+
+@mcp.tool()
+def use_account_item(
+    item_id: int, account: str = "main", amount: int = 1
+) -> dict:
+    """Use a consumable on the account (operator), NOT on a kami.
+
+    Intended for stamina restores (21201-21206 ice creams / paste),
+    VIPP sacrifice, and other account-level items. System is
+    `system.account.use.item` (Operator wallet). The account contract
+    syncs stamina before applying the effect.
+
+    Args:
+        item_id: Item index, e.g. 21201 (Ice Cream, +20 stamina).
+        account: Account label.
+        amount: Quantity to consume in this call (default 1).
+    """
+    return _send_tx_retry(
+        account,
+        "system.account.use.item",
+        _ABI_ACCOUNT_USE,
+        [item_id, amount],
+    )
 
 
 @mcp.tool()

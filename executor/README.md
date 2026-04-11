@@ -102,6 +102,7 @@ The server runs as a stdio MCP server, launched by Claude Code:
 | `get_inventory(account)` | All items and balances |
 | `get_kami_state(kami_id, account)` | Full kami data (stats, bonuses, harvest) |
 | `get_kami_state_slim(kami_id, account)` | Lightweight kami data |
+| `get_kamis_progress_batch(kami_ids, account)` | Compact level/XP/skills for many kamis |
 | `get_all_strategies(account)` | List active strategies |
 | `get_strategy_status(kami_id, account)` | Single strategy status |
 | `get_strategy_logs(container_id, tail, account)` | Strategy container logs |
@@ -118,18 +119,30 @@ The server runs as a stdio MCP server, launched by Claude Code:
 | Tool | Description |
 |---|---|
 | `start_strategy(type, kami_id, node_id, config, account)` | Start a strategy |
-| `stop_strategy(kami_id, account)` | Stop a running strategy |
+| `stop_strategy(kami_id, permanent, account)` | Stop/pause a running strategy |
 
 ### On-chain (direct transactions)
 
 | Tool | Description |
 |---|---|
-| `move_to_room(room_index, account)` | Move account to a room |
+| `move_to_room(room_index, account)` | Single-hop move to adjacent room |
+| `travel_to_room(target_room, account, use_items, dry_run)` | Multi-hop autopilot with BFS pathfinding + stamina management |
 | `feed_kami(kami_id, food_item_id, account)` | Feed kami to restore HP |
 | `revive_kami(kami_id, account)` | Revive dead kami (33 Onyx) |
 | `level_up_kami(kami_id, account)` | Level up if XP sufficient |
 | `equip_item(kami_id, item_index, account)` | Equip item to kami |
 | `unequip_item(kami_id, slot_type, account)` | Unequip from slot |
+| `use_account_item(item_id, account, amount)` | Use consumable on account (stamina restores, etc.) |
+
+### Batch / composite tools
+
+| Tool | Description |
+|---|---|
+| `get_kamis_progress_batch(kami_ids, account)` | Compact level/XP/skills for N kamis in one call |
+| `level_and_allocate_batch(targets, account)` | Batch level-up + skill allocation across many kamis |
+| `level_to(kami_id, target_level, account)` | Level up repeatedly to target |
+| `allocate_skills(kami_id, skill_plan, account)` | Allocate multiple skill points |
+| `use_item_batch(kami_id, item_id, count, account)` | Use same item N times |
 
 ## Adding new tools
 
