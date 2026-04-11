@@ -74,6 +74,7 @@ _SYSTEMS_COMPONENT_ABI = json.loads(
 )
 _world = w3.eth.contract(address=WORLD_ADDRESS, abi=_WORLD_ABI)
 _system_cache: dict[str, str] = {}
+_component_cache: dict[str, str] = {}
 
 
 def _resolve_system(system_id: str) -> str:
@@ -92,6 +93,22 @@ def _resolve_system(system_id: str) -> str:
     return _system_cache[system_id]
 
 
+def _resolve_component(component_id: str) -> str:
+    """Resolve component ID string to on-chain contract address (cached)."""
+    if component_id not in _component_cache:
+        h = int.from_bytes(Web3.keccak(text=component_id), "big")
+        cc_addr = _world.functions.components().call()
+        cc = w3.eth.contract(address=cc_addr, abi=_SYSTEMS_COMPONENT_ABI)
+        entities = cc.functions.getEntitiesWithValue(h).call()
+        if not entities:
+            raise ValueError(f"Component not found on-chain: {component_id}")
+        addr = Web3.to_checksum_address(
+            "0x" + hex(entities[0])[2:].zfill(40)[-40:]
+        )
+        _component_cache[component_id] = addr
+    return _component_cache[component_id]
+
+
 def _kami_entity_id(kami_index: int) -> int:
     """Derive kami entity ID from token index: keccak256("kami.id", index)."""
     return int.from_bytes(
@@ -99,11 +116,49 @@ def _kami_entity_id(kami_index: int) -> int:
     )
 
 
-def _harvest_entity_id(kami_entity_id: int) -> int:
+def _account_entity_id(account: str) -> int:
+    """Derive account entity ID from owner wallet address: uint256(address)."""
+    acct = _get_account(account)
+    if not acct.owner_addr:
+        raise ValueError(f"Account '{account}' has no owner address")
+    return int(acct.owner_addr, 16)
+
+
+def _harvest_entity_id(kami_index: int) -> int:
     """Derive harvest entity ID: keccak256("harvest", kamiEntityId)."""
+    kami_eid = _kami_entity_id(kami_index)
     return int.from_bytes(
-        Web3.solidity_keccak(["string", "uint256"], ["harvest", kami_entity_id]), "big"
+        Web3.solidity_keccak(["string", "uint256"], ["harvest", kami_eid]), "big"
     )
+
+
+def _quest_entity_id(quest_index: int, account_entity_id: int) -> int:
+    """Derive quest instance entity ID: keccak256("quest.instance", index, accountId)."""
+    return int.from_bytes(
+        Web3.solidity_keccak(
+            ["string", "uint32", "uint256"],
+            ["quest.instance", quest_index, account_entity_id],
+        ),
+        "big",
+    )
+
+
+# Component read ABIs
+_STRING_VALUE_ABI = json.loads(
+    '[{"type":"function","name":"getValue",'
+    '"inputs":[{"name":"entity","type":"uint256"}],'
+    '"outputs":[{"type":"string"}],"stateMutability":"view"}]'
+)
+_UINT_VALUE_ABI = json.loads(
+    '[{"type":"function","name":"getValue",'
+    '"inputs":[{"name":"entity","type":"uint256"}],'
+    '"outputs":[{"type":"uint256"}],"stateMutability":"view"}]'
+)
+_UINT32_VALUE_ABI = json.loads(
+    '[{"type":"function","name":"getValue",'
+    '"inputs":[{"name":"entity","type":"uint256"}],'
+    '"outputs":[{"type":"uint32"}],"stateMutability":"view"}]'
+)
 
 
 # ---------------------------------------------------------------------------
@@ -214,6 +269,7 @@ def _send_tx(
     abi: list,
     args: list,
     gas_limit: int | None = None,
+    return_receipt: bool = False,
 ) -> dict:
     """Build, sign, send a transaction with the account's operator key."""
     acct = _get_account(account)
@@ -235,12 +291,47 @@ def _send_tx(
     tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
 
-    return {
+    result = {
         "tx_hash": "0x" + receipt.transactionHash.hex(),
         "status": "success" if receipt.status == 1 else "reverted",
         "block": receipt.blockNumber,
         "gas_used": receipt.gasUsed,
         "account": account,
+    }
+    if return_receipt:
+        result["_receipt"] = receipt
+    return result
+
+
+def _send_batch_tx(
+    account: str,
+    system_id: str,
+    abi: list,
+    fn_name: str,
+    args: list,
+    gas_per_item: int,
+) -> dict:
+    """Build, sign, send a batch transaction."""
+    acct = _get_account(account)
+    addr = _resolve_system(system_id)
+    contract = w3.eth.contract(address=addr, abi=abi)
+    fn = getattr(contract.functions, fn_name)(*args)
+    tx_params = {
+        "from": acct.operator_addr,
+        "chainId": CHAIN_ID,
+        "nonce": w3.eth.get_transaction_count(acct.operator_addr),
+        "gas": gas_per_item * max(len(args[0]) if isinstance(args[0], list) else 1, 1),
+        **_GAS_PRICE,
+    }
+    built = fn.build_transaction(tx_params)
+    signed = w3.eth.account.sign_transaction(built, private_key=acct.operator_key)
+    tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+    receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+    return {
+        "tx_hash": "0x" + receipt.transactionHash.hex(),
+        "status": "success" if receipt.status == 1 else "reverted",
+        "block": receipt.blockNumber,
+        "gas_used": receipt.gasUsed,
     }
 
 
@@ -1299,6 +1390,107 @@ _ABI_ACCOUNT_USE = json.loads(
     '"inputs":[{"name":"itemIndex","type":"uint32"},{"name":"amt","type":"uint256"}],'
     '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"}]'
 )
+_ABI_HARVEST_START = json.loads(
+    '[{"type":"function","name":"executeTyped",'
+    '"inputs":[{"name":"kamiID","type":"uint256"},{"name":"nodeIndex","type":"uint32"},'
+    '{"name":"taxerID","type":"uint256"},{"name":"taxAmt","type":"uint256"}],'
+    '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"},'
+    '{"type":"function","name":"executeBatched",'
+    '"inputs":[{"name":"kamiIDs","type":"uint256[]"},{"name":"nodeIndex","type":"uint32"},'
+    '{"name":"taxerID","type":"uint256"},{"name":"taxAmt","type":"uint256"}],'
+    '"outputs":[{"type":"bytes[]"}],"stateMutability":"nonpayable"}]'
+)
+_ABI_HARVEST_STOP = json.loads(
+    '[{"type":"function","name":"executeTyped",'
+    '"inputs":[{"name":"id","type":"uint256"}],'
+    '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"},'
+    '{"type":"function","name":"executeBatched",'
+    '"inputs":[{"name":"ids","type":"uint256[]"}],'
+    '"outputs":[{"type":"bytes[]"}],"stateMutability":"nonpayable"}]'
+)
+_ABI_HARVEST_COLLECT = _ABI_HARVEST_STOP  # same signature
+_ABI_LISTING_BUY = json.loads(
+    '[{"type":"function","name":"executeTyped",'
+    '"inputs":[{"name":"merchantIndex","type":"uint32"},'
+    '{"name":"itemIndices","type":"uint32[]"},'
+    '{"name":"amts","type":"uint32[]"}],'
+    '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"}]'
+)
+
+
+@mcp.tool()
+def harvest_start(kami_ids: list[int], node_index: int, account: str = "main") -> dict:
+    """Start harvesting for one or more kamis at a node. Costs gas.
+
+    Kamis must be in the same room as the node and not already harvesting.
+    Uses batch variant for multiple kamis (1 tx).
+
+    Args:
+        kami_ids: List of kami token indices.
+        node_index: Harvest node index (same as room index).
+        account: Account label.
+    """
+    entity_ids = [_kami_entity_id(k) for k in kami_ids]
+    if len(entity_ids) == 1:
+        return _send_tx(
+            account, "system.harvest.start", _ABI_HARVEST_START,
+            [entity_ids[0], node_index, 0, 0], gas_limit=1_500_000,
+        )
+    # Batch
+    return _send_batch_tx(
+        account, "system.harvest.start", _ABI_HARVEST_START,
+        "executeBatched", [entity_ids, node_index, 0, 0], 1_500_000,
+    )
+
+
+@mcp.tool()
+def harvest_stop(kami_ids: list[int], account: str = "main") -> dict:
+    """Stop active harvests and auto-collect rewards. Costs gas.
+
+    Uses batch variant for multiple kamis (1 tx). Rewards + scavenge
+    points are distributed on stop.
+
+    Args:
+        kami_ids: List of kami token indices whose harvests to stop.
+        account: Account label.
+    """
+    h_ids = [_harvest_entity_id(k) for k in kami_ids]
+    if len(h_ids) == 1:
+        return _send_tx(
+            account, "system.harvest.stop", _ABI_HARVEST_STOP,
+            [h_ids[0]], gas_limit=2_000_000,
+        )
+    result = _send_batch_tx(
+        account, "system.harvest.stop", _ABI_HARVEST_STOP,
+        "executeBatched", [h_ids], 2_000_000,
+    )
+    result["kamis"] = kami_ids
+    return result
+
+
+@mcp.tool()
+def harvest_collect(kami_ids: list[int], account: str = "main") -> dict:
+    """Collect rewards from active harvests WITHOUT stopping them. Costs gas.
+
+    Partial collection — kamis keep harvesting. Rewards + scavenge points
+    are distributed.
+
+    Args:
+        kami_ids: List of kami token indices whose harvests to collect.
+        account: Account label.
+    """
+    h_ids = [_harvest_entity_id(k) for k in kami_ids]
+    if len(h_ids) == 1:
+        return _send_tx(
+            account, "system.harvest.collect", _ABI_HARVEST_COLLECT,
+            [h_ids[0]], gas_limit=2_000_000,
+        )
+    result = _send_batch_tx(
+        account, "system.harvest.collect", _ABI_HARVEST_COLLECT,
+        "executeBatched", [h_ids], 2_000_000,
+    )
+    result["kamis"] = kami_ids
+    return result
 
 
 @mcp.tool()
@@ -1517,6 +1709,7 @@ async def travel_to_room(
                     "system.account.use.item",
                     _ABI_ACCOUNT_USE,
                     [step["id"], 1],
+                    gas_limit=1_500_000,
                 )
             except Exception as e:
                 exec_error = f"item {step['id']} use reverted: {e}"
@@ -1584,6 +1777,32 @@ async def travel_to_room(
         "partial_reason": partial_reason or exec_error,
         "error": exec_error,
     }
+
+
+@mcp.tool()
+def listing_buy(
+    merchant_index: int,
+    item_indices: list[int],
+    amounts: list[int],
+    account: str = "main",
+) -> dict:
+    """Buy items from an NPC merchant. Must be in the merchant's room.
+
+    Args:
+        merchant_index: NPC merchant index (1=Mina, 2=Vending Machine).
+        item_indices: List of item indices to buy (global item index, e.g. 11301).
+        amounts: List of amounts for each item (parallel to item_indices).
+        account: Account label.
+    """
+    if len(item_indices) != len(amounts):
+        raise ValueError("item_indices and amounts must have the same length")
+    return _send_tx(
+        account,
+        "system.listing.buy",
+        _ABI_LISTING_BUY,
+        [merchant_index, item_indices, amounts],
+        gas_limit=1_500_000,
+    )
 
 
 @mcp.tool()
@@ -2296,7 +2515,7 @@ def stop_harvest_batch(
         account: Account label.
     """
     harvest_ids = [
-        _harvest_entity_id(_kami_entity_id(kid)) for kid in kami_ids
+        _harvest_entity_id(kid) for kid in kami_ids
     ]
 
     acct = _get_account(account)
@@ -2324,6 +2543,388 @@ def stop_harvest_batch(
         "account": account,
         "kami_ids": kami_ids,
         "count": len(kami_ids),
+    }
+
+
+# ---- On-chain: quest management ----
+
+_ABI_QUEST_ACCEPT = json.loads(
+    '[{"type":"function","name":"executeTyped",'
+    '"inputs":[{"name":"index","type":"uint32"}],'
+    '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"}]'
+)
+_ABI_QUEST_COMPLETE = json.loads(
+    '[{"type":"function","name":"executeTyped",'
+    '"inputs":[{"name":"id","type":"uint256"}],'
+    '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"}]'
+)
+_ABI_QUEST_DROP = _ABI_QUEST_COMPLETE  # same signature
+
+
+@mcp.tool()
+def get_active_quests(account: str = "main") -> dict:
+    """Enumerate all active quests for the account by reading on-chain state.
+
+    Returns quest entity IDs and, where possible, matched quest indices.
+
+    Args:
+        account: Account label.
+    """
+    acc_id = _account_entity_id(account)
+
+    owns_addr = _resolve_component("component.id.quest.owns")
+    owns_comp = w3.eth.contract(
+        address=owns_addr, abi=_SYSTEMS_COMPONENT_ABI
+    )
+    quest_eids = owns_comp.functions.getEntitiesWithValue(acc_id).call()
+
+    # Pre-compute entity IDs for known quest indices to reverse-map
+    known_indices = list(range(1, 109)) + list(range(2001, 2017)) + list(range(3001, 3025))
+    eid_to_index = {}
+    for idx in known_indices:
+        eid_to_index[_quest_entity_id(idx, acc_id)] = idx
+
+    quests = []
+    for eid in quest_eids:
+        q: dict = {"entity_id": hex(eid)}
+        if eid in eid_to_index:
+            q["quest_index"] = eid_to_index[eid]
+        quests.append(q)
+
+    return {
+        "account": account,
+        "active_quest_count": len(quests),
+        "quests": quests,
+    }
+
+
+@mcp.tool()
+def get_quest_status(quest_index: int, account: str = "main") -> dict:
+    """Check the on-chain state of a specific quest for the account.
+
+    Returns the quest state string if active, or indicates not accepted.
+
+    Args:
+        quest_index: Quest index (1-108 main, 2001-2016 Mina, 3001+ side).
+        account: Account label.
+    """
+    acc_id = _account_entity_id(account)
+    q_id = _quest_entity_id(quest_index, acc_id)
+
+    state_addr = _resolve_component("component.state")
+    state_comp = w3.eth.contract(address=state_addr, abi=_STRING_VALUE_ABI)
+
+    try:
+        state = state_comp.functions.getValue(q_id).call()
+        return {
+            "quest_index": quest_index,
+            "entity_id": hex(q_id),
+            "state": state,
+            "active": bool(state),
+        }
+    except Exception as e:
+        return {
+            "quest_index": quest_index,
+            "entity_id": hex(q_id),
+            "state": None,
+            "active": False,
+            "note": f"Not accepted or already completed ({e})",
+        }
+
+
+@mcp.tool()
+def accept_quest(quest_index: int, account: str = "main") -> dict:
+    """Accept a quest by index. Costs gas.
+
+    Requirements are checked on-chain (previous quest completed, location, etc).
+
+    Args:
+        quest_index: Quest index to accept.
+        account: Account label.
+    """
+    return _send_tx(
+        account,
+        "system.quest.accept",
+        _ABI_QUEST_ACCEPT,
+        [quest_index],
+        gas_limit=1_500_000,
+    )
+
+
+@mcp.tool()
+def complete_quest(quest_index: int, account: str = "main") -> dict:
+    """Complete an active quest. Costs gas. All objectives must be met.
+
+    Computes the quest entity ID from the index and account.
+
+    Args:
+        quest_index: Quest index of the active quest to complete.
+        account: Account label.
+    """
+    acc_id = _account_entity_id(account)
+    q_id = _quest_entity_id(quest_index, acc_id)
+    return _send_tx(
+        account,
+        "system.quest.complete",
+        _ABI_QUEST_COMPLETE,
+        [q_id],
+        gas_limit=2_000_000,
+    )
+
+
+@mcp.tool()
+def check_quest_completable(quest_index: int, account: str = "main") -> dict:
+    """Check if a quest can be completed right now (free staticCall, no gas).
+
+    Returns completable=True if all objectives are met.
+
+    Args:
+        quest_index: Quest index to check.
+        account: Account label.
+    """
+    acc_id = _account_entity_id(account)
+    q_id = _quest_entity_id(quest_index, acc_id)
+
+    addr = _resolve_system("system.quest.complete")
+    contract = w3.eth.contract(address=addr, abi=_ABI_QUEST_COMPLETE)
+
+    acct = _get_account(account)
+    try:
+        contract.functions.executeTyped(q_id).call(
+            {"from": acct.operator_addr}
+        )
+        return {"quest_index": quest_index, "completable": True}
+    except Exception as e:
+        return {
+            "quest_index": quest_index,
+            "completable": False,
+            "reason": str(e),
+        }
+
+
+@mcp.tool()
+def drop_quest(quest_index: int, account: str = "main") -> dict:
+    """Drop/abandon an active quest. Costs gas.
+
+    Args:
+        quest_index: Quest index of the active quest to drop.
+        account: Account label.
+    """
+    acc_id = _account_entity_id(account)
+    q_id = _quest_entity_id(quest_index, acc_id)
+    return _send_tx(
+        account,
+        "system.quest.drop",
+        _ABI_QUEST_DROP,
+        [q_id],
+        gas_limit=1_000_000,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Item burn
+# ---------------------------------------------------------------------------
+
+_ABI_ITEM_BURN = json.loads(
+    '[{"type":"function","name":"executeTyped",'
+    '"inputs":[{"name":"indices","type":"uint32[]"},'
+    '{"name":"amounts","type":"uint256[]"}],'
+    '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"}]'
+)
+
+
+@mcp.tool()
+def burn_items(
+    item_indices: list[int],
+    amounts: list[int],
+    account: str = "main",
+) -> dict:
+    """Burn (destroy) items from inventory. Used for quest turn-ins.
+
+    Args:
+        item_indices: List of item indices to burn (e.g. [1005]).
+        amounts: List of amounts to burn, parallel to item_indices.
+        account: Account label.
+    """
+    return _send_tx(
+        account,
+        "system.item.burn",
+        _ABI_ITEM_BURN,
+        [item_indices, amounts],
+        gas_limit=1_000_000,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Scavenge & Droptable
+# ---------------------------------------------------------------------------
+
+
+def _scavenge_registry_id(node_index: int) -> int:
+    """Registry scavenge bar ID: keccak256("registry.scavenge", "NODE", nodeIndex)."""
+    return int.from_bytes(
+        Web3.solidity_keccak(
+            ["string", "string", "uint32"],
+            ["registry.scavenge", "NODE", node_index],
+        ),
+        "big",
+    )
+
+
+def _scavenge_instance_id(node_index: int, account: str) -> int:
+    """Per-account scavenge instance: keccak256("scavenge.instance", "NODE", nodeIndex, holderID)."""
+    acc_id = _account_entity_id(account)
+    return int.from_bytes(
+        Web3.solidity_keccak(
+            ["string", "string", "uint32", "uint256"],
+            ["scavenge.instance", "NODE", node_index, acc_id],
+        ),
+        "big",
+    )
+
+
+_ABI_SCAV_CLAIM = json.loads(
+    '[{"type":"function","name":"executeTyped",'
+    '"inputs":[{"name":"scavBarID","type":"uint256"}],'
+    '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"}]'
+)
+_ABI_DROPTABLE_REVEAL = json.loads(
+    '[{"type":"function","name":"executeTyped",'
+    '"inputs":[{"name":"commitIDs","type":"uint256[]"}],'
+    '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"}]'
+)
+
+
+@mcp.tool()
+def get_scavenge_points(node_index: int, account: str = "main") -> dict:
+    """Check accumulated scavenge points for a node.
+
+    Reads the Value component on the scavenge instance entity.
+
+    Args:
+        node_index: Harvest node index (e.g., 47 for Scrap Paths).
+        account: Account label.
+    """
+    instance_id = _scavenge_instance_id(node_index, account)
+    comp_addr = _resolve_component("component.value")
+    comp = w3.eth.contract(address=comp_addr, abi=_UINT_VALUE_ABI)
+    try:
+        points = comp.functions.getValue(instance_id).call()
+    except Exception:
+        points = 0
+    return {
+        "node_index": node_index,
+        "account": account,
+        "points": points,
+        "instance_entity": hex(instance_id),
+    }
+
+
+def _extract_commit_ids(receipt) -> list[int]:
+    """Extract droptable commit entity IDs from a scavenge claim receipt.
+
+    Scans for the ScavengeClaimed event (topic 0x864886b8...) and extracts
+    commit IDs from the end of its data payload. Falls back to scanning all
+    StoreSetRecord logs for large entity-like values if the event is missing.
+    """
+    SCAVENGE_EVENT = "864886b848e1d5dcdb238c4d9a86fb039b25159246f11d33f6811d5b8919b4c1"
+    for log in receipt.logs:
+        if log.topics and log.topics[0].hex() == SCAVENGE_EVENT:
+            data = log.data
+            # The event data ends with: ... count, commitId[0], commitId[1], ...
+            # Scan backwards from the end to find commit IDs (large uint256 > 2^128)
+            words = [int.from_bytes(data[i:i+32], "big") for i in range(0, len(data), 32)]
+            commit_ids = []
+            # Walk backwards collecting large entity IDs until we hit a small number (the count)
+            for w in reversed(words):
+                if w > 2**128:
+                    commit_ids.append(w)
+                else:
+                    break
+            commit_ids.reverse()
+            if commit_ids:
+                return commit_ids
+    return []
+
+
+@mcp.tool()
+def scavenge_claim(node_index: int, account: str = "main") -> dict:
+    """Claim scavenge rewards for a node. Costs gas.
+
+    Triggers droptable commit(s) that must be revealed in a later block.
+    Returns commit_ids for use with droptable_reveal.
+
+    Args:
+        node_index: Harvest node index.
+        account: Account label.
+    """
+    reg_id = _scavenge_registry_id(node_index)
+    result = _send_tx(
+        account,
+        "system.scavenge.claim",
+        _ABI_SCAV_CLAIM,
+        [reg_id],
+        gas_limit=2_000_000,
+        return_receipt=True,
+    )
+    receipt = result.pop("_receipt", None)
+    if receipt and result["status"] == "success":
+        result["commit_ids"] = _extract_commit_ids(receipt)
+    return result
+
+
+@mcp.tool()
+def droptable_reveal(commit_ids: list[int], account: str = "main") -> dict:
+    """Reveal droptable commits to receive items. Costs gas.
+
+    Must be called in a later block than the claim that created the commits.
+
+    Args:
+        commit_ids: List of commit entity IDs from scavenge claims.
+        account: Account label.
+    """
+    return _send_tx(
+        account,
+        "system.droptable.item.reveal",
+        _ABI_DROPTABLE_REVEAL,
+        [commit_ids],
+        gas_limit=2_000_000,
+    )
+
+
+@mcp.tool()
+def scavenge_claim_and_reveal(node_index: int, account: str = "main") -> dict:
+    """Claim scavenge rewards AND reveal droptable items in one call.
+
+    Combines scavenge_claim + droptable_reveal. Waits for the next block
+    between claim and reveal (reveal must be in a later block than claim).
+
+    Args:
+        node_index: Harvest node index.
+        account: Account label.
+    """
+    # Step 1: Claim
+    claim_result = scavenge_claim(node_index, account)
+    if claim_result["status"] != "success":
+        return {"claim": claim_result, "reveal": None, "error": "claim failed"}
+
+    commit_ids = claim_result.get("commit_ids", [])
+    if not commit_ids:
+        return {"claim": claim_result, "reveal": None, "error": "no commit_ids found in claim receipt"}
+
+    # Step 2: Wait for next block (reveal must be in a different block)
+    claim_block = claim_result["block"]
+    for _ in range(30):
+        time.sleep(2)
+        if w3.eth.block_number > claim_block:
+            break
+
+    # Step 3: Reveal
+    reveal_result = droptable_reveal(commit_ids, account)
+    return {
+        "claim": claim_result,
+        "reveal": reveal_result,
+        "commit_ids": commit_ids,
     }
 
 

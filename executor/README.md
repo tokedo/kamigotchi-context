@@ -125,14 +125,39 @@ The server runs as a stdio MCP server, launched by Claude Code:
 
 | Tool | Description |
 |---|---|
+| `harvest_start(kami_ids, node_index, account)` | Start harvesting (single or batch) |
+| `harvest_stop(kami_ids, account)` | Stop harvests + auto-collect rewards (batch) |
+| `harvest_collect(kami_ids, account)` | Collect rewards without stopping (batch) |
 | `move_to_room(room_index, account)` | Single-hop move to adjacent room |
 | `travel_to_room(target_room, account, use_items, dry_run)` | Multi-hop autopilot with BFS pathfinding + stamina management |
+| `listing_buy(merchant_index, item_indices, amounts, account)` | Buy items from NPC merchant |
 | `feed_kami(kami_id, food_item_id, account)` | Feed kami to restore HP |
 | `revive_kami(kami_id, account)` | Revive dead kami (33 Onyx) |
 | `level_up_kami(kami_id, account)` | Level up if XP sufficient |
 | `equip_item(kami_id, item_index, account)` | Equip item to kami |
 | `unequip_item(kami_id, slot_type, account)` | Unequip from slot |
 | `use_account_item(item_id, account, amount)` | Use consumable on account (stamina restores, etc.) |
+| `burn_items(item_indices, amounts, account)` | Burn/destroy items (for quest turn-ins) |
+
+### Quest management
+
+| Tool | Description |
+|---|---|
+| `get_active_quests(account)` | Enumerate all active quests (on-chain read) |
+| `get_quest_status(quest_index, account)` | Check quest state string |
+| `accept_quest(quest_index, account)` | Accept a quest |
+| `complete_quest(quest_index, account)` | Complete an active quest |
+| `check_quest_completable(quest_index, account)` | Free check if objectives are met (no gas) |
+| `drop_quest(quest_index, account)` | Drop/abandon an active quest |
+
+### Scavenge & droptable
+
+| Tool | Description |
+|---|---|
+| `get_scavenge_points(node_index, account)` | Check accumulated scavenge points |
+| `scavenge_claim(node_index, account)` | Claim scavenge rewards (returns commit_ids) |
+| `droptable_reveal(commit_ids, account)` | Reveal droptable commits to receive items |
+| `scavenge_claim_and_reveal(node_index, account)` | Combined claim + wait + reveal |
 
 ### Batch / composite tools
 
