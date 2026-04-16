@@ -1358,6 +1358,11 @@ _ABI_SKILL = json.loads(
     '"inputs":[{"name":"holderID","type":"uint256"},{"name":"skillIndex","type":"uint32"}],'
     '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"}]'
 )
+_ABI_NAME = json.loads(
+    '[{"type":"function","name":"executeTyped",'
+    '"inputs":[{"name":"kamiID","type":"uint256"},{"name":"name","type":"string"}],'
+    '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"}]'
+)
 _ABI_EQUIP = json.loads(
     '[{"type":"function","name":"executeTyped",'
     '"inputs":[{"name":"kamiID","type":"uint256"},{"name":"itemIndex","type":"uint32"}],'
@@ -1417,12 +1422,12 @@ def harvest_start(kami_ids: list[int], node_index: int, account: str = "main") -
     if len(entity_ids) == 1:
         return _send_tx(
             account, "system.harvest.start", _ABI_HARVEST_START,
-            [entity_ids[0], node_index, 0, 0], gas_limit=1_500_000,
+            [entity_ids[0], node_index, 0, 0], gas_limit=3_000_000,
         )
     # Batch
     return _send_batch_tx(
         account, "system.harvest.start", _ABI_HARVEST_START,
-        "executeBatched", [entity_ids, node_index, 0, 0], 1_500_000,
+        "executeBatched", [entity_ids, node_index, 0, 0], 3_000_000,
     )
 
 
@@ -1829,6 +1834,20 @@ def level_up_kami(kami_id: int, account: str = "main") -> dict:
     """
     return _send_tx(
         account, "system.kami.level", _ABI_LEVEL, [_kami_entity_id(kami_id)]
+    )
+
+
+@mcp.tool()
+def name_kami(kami_id: int, name: str, account: str = "main") -> dict:
+    """Name or rename a kami. Costs 1 Holy Dust. Kami must be in room 11.
+
+    Args:
+        kami_id: Kami token index (e.g. 45).
+        name: New name (1-16 characters, globally unique).
+        account: Account label.
+    """
+    return _send_tx(
+        account, "system.kami.name", _ABI_NAME, [_kami_entity_id(kami_id), name]
     )
 
 
@@ -2738,6 +2757,38 @@ def burn_items(
     )
 
 
+_ABI_CRAFT = json.loads(
+    '[{"type":"function","name":"executeTyped",'
+    '"inputs":[{"name":"recipeIndex","type":"uint32"},'
+    '{"name":"amount","type":"uint256"}],'
+    '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"}]'
+)
+
+
+@mcp.tool()
+def craft_item(
+    recipe_index: int,
+    amount: int = 1,
+    account: str = "main",
+) -> dict:
+    """Craft items from a recipe. Consumes inputs, produces outputs, costs stamina.
+
+    See catalogs/recipes.csv for recipe indices and requirements.
+
+    Args:
+        recipe_index: Recipe index (e.g. 6 for Extract Pine Pollen).
+        amount: Number of times to craft (multiplies inputs/outputs).
+        account: Account label.
+    """
+    return _send_tx(
+        account,
+        "system.craft",
+        _ABI_CRAFT,
+        [recipe_index, amount],
+        gas_limit=1_500_000,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Scavenge & Droptable
 # ---------------------------------------------------------------------------
@@ -2902,8 +2953,15 @@ def scavenge_claim_and_reveal(node_index: int, account: str = "main") -> dict:
         if w3.eth.block_number > claim_block:
             break
 
-    # Step 3: Reveal
+    # Step 3: Reveal (may revert if items were granted directly by claim)
     reveal_result = droptable_reveal(commit_ids, account)
+    if reveal_result.get("status") == "reverted":
+        return {
+            "claim": claim_result,
+            "reveal": None,
+            "reveal_skipped": "reveal reverted — items likely granted directly by claim",
+            "commit_ids": commit_ids,
+        }
     return {
         "claim": claim_result,
         "reveal": reveal_result,

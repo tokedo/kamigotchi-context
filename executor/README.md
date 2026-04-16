@@ -134,10 +134,12 @@ The server runs as a stdio MCP server, launched by Claude Code:
 | `feed_kami(kami_id, food_item_id, account)` | Feed kami to restore HP |
 | `revive_kami(kami_id, account)` | Revive dead kami (33 Onyx) |
 | `level_up_kami(kami_id, account)` | Level up if XP sufficient |
+| `name_kami(kami_id, name, account)` | Name/rename a kami (1 Holy Dust, must be in room 11) |
 | `equip_item(kami_id, item_index, account)` | Equip item to kami |
 | `unequip_item(kami_id, slot_type, account)` | Unequip from slot |
 | `use_account_item(item_id, account, amount)` | Use consumable on account (stamina restores, etc.) |
 | `burn_items(item_indices, amounts, account)` | Burn/destroy items (for quest turn-ins) |
+| `craft_item(recipe_index, amount, account)` | Craft items from a recipe (see catalogs/recipes.csv) |
 
 ### Quest management
 
