@@ -1,8 +1,21 @@
 # Kamigotchi Agent Context
 
-Decision-oriented context for an AI agent playing Kamigotchi — a pure on-chain
-MMORPG on Yominet. All game mechanics the agent needs are distilled into
-`systems/` files in this repo.
+A plug-and-play harness for AI agents that play Kamigotchi — a pure
+on-chain MMORPG on Yominet. The repo bundles game-mechanics
+documentation, calibrated catalogs, MCP tools that wrap on-chain
+actions, and prebuilt operating modes for both supervised and
+autonomous play.
+
+> **Setting up?** → Start at [`SETUP.md`](SETUP.md). It walks through
+> the two operating modes (Hybrid = interactive Claude Code, Fully
+> Autonomous = VM with cron) and the steps to get the harness running.
+>
+> **Already set up?** → The agent reads [`CLAUDE.md`](CLAUDE.md) for
+> operational instructions and [`executor/README.md`](executor/README.md)
+> for the full MCP tool reference (64 tools).
+>
+> The rest of this README is the **agent's view of the game** — the
+> mechanics, resources, and decision priorities the agent reasons over.
 
 ## Core Loop
 
