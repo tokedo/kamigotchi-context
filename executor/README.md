@@ -131,12 +131,14 @@ The server runs as a stdio MCP server, launched by Claude Code:
 | `move_to_room(room_index, account)` | Single-hop move to adjacent room |
 | `travel_to_room(target_room, account, use_items, dry_run)` | Multi-hop autopilot with BFS pathfinding + stamina management |
 | `listing_buy(merchant_index, item_indices, amounts, account)` | Buy items from NPC merchant |
+| `auction_buy(item_index, amount, account)` | Buy from the global Dutch auction (Marketplace, room 66, owner wallet) |
 | `feed_kami(kami_id, food_item_id, account)` | Feed kami to restore HP |
 | `revive_kami(kami_id, account)` | Revive dead kami (33 Onyx) |
 | `level_up_kami(kami_id, account)` | Level up if XP sufficient |
 | `name_kami(kami_id, name, account)` | Name/rename a kami (1 Holy Dust, must be in room 11) |
 | `equip_item(kami_id, item_index, account)` | Equip item to kami |
 | `unequip_item(kami_id, slot_type, account)` | Unequip from slot |
+| `upgrade_skill(kami_id, skill_index, account)` | Spend 1 SP on a skill |
 | `use_account_item(item_id, account, amount)` | Use consumable on account (stamina restores, etc.) |
 | `burn_items(item_indices, amounts, account)` | Burn/destroy items (for quest turn-ins) |
 | `craft_item(recipe_index, amount, account)` | Craft items from a recipe (see catalogs/recipes.csv) |
@@ -145,8 +147,10 @@ The server runs as a stdio MCP server, launched by Claude Code:
 
 | Tool | Description |
 |---|---|
-| `get_active_quests(account)` | Enumerate all active quests (on-chain read) |
+| `get_active_quests(account)` | Enumerate owned quests + completion flags |
 | `get_quest_status(quest_index, account)` | Check quest state string |
+| `quest_state(quest_index, account)` | Discriminated read: not_accepted / active_blocked / active_ready / completed (free, no gas) |
+| `get_expected_objective(quest_index)` | Catalog read of expected objectives (from `catalogs/quests/`) |
 | `accept_quest(quest_index, account)` | Accept a quest |
 | `complete_quest(quest_index, account)` | Complete an active quest |
 | `check_quest_completable(quest_index, account)` | Free check if objectives are met (no gas) |
@@ -161,11 +165,27 @@ The server runs as a stdio MCP server, launched by Claude Code:
 | `droptable_reveal(commit_ids, account)` | Reveal droptable commits to receive items |
 | `scavenge_claim_and_reveal(node_index, account)` | Combined claim + wait + reveal |
 
-### Batch / composite tools
+### Trading
 
 | Tool | Description |
 |---|---|
-| `get_kamis_progress_batch(kami_ids, account)` | Compact level/XP/skills for N kamis in one call |
+| `get_account_trades(account)` | Open + recently executed trades (uses Kamiden indexer) |
+| `create_trade(...)` | Create a sell or buy listing |
+| `cancel_trade(trade_id, account)` | Cancel an open listing |
+| `take_trade(trade_id, account)` | Take (execute) a pending trade as the taker (owner wallet) |
+| `complete_trade(trade_id, account)` | Complete a trade where you're the maker |
+| `complete_all_trades(account)` | Complete every executed trade for this account |
+| `list_open_sell_offers(seed_account, max_offers)` | Discover open sell offers from other players (Kamiden BFS expand) |
+
+### Batch / composite tools
+
+Prefer these over firing N parallel single-kami calls — one MCP round-trip,
+one compact result, per-item failure isolation, nonce-retry built in.
+
+| Tool | Description |
+|---|---|
+| `get_kamis_progress_batch(kami_ids, account)` | Compact stats/skills/traits for N kamis in one call |
+| `stop_harvest_batch(kami_ids, account)` | Batch `harvest.stop` via `executeBatchedAllowFailure` |
 | `level_and_allocate_batch(targets, account)` | Batch level-up + skill allocation across many kamis |
 | `level_to(kami_id, target_level, account)` | Level up repeatedly to target |
 | `allocate_skills(kami_id, skill_plan, account)` | Allocate multiple skill points |
