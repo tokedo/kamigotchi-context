@@ -127,18 +127,24 @@ def _quest_entity_id(quest_index: int, account_entity_id: int) -> int:
 
 
 # Component read ABIs
+# NOTE: Yominet's MUD-flavored components expose `get(uint256)` and
+# `safeGet(uint256)`, NOT `getValue(uint256)`. The `getValue` selector
+# silently reverts on Yominet — any try/except that swallows it returns
+# "0", which can mask broken reads. Prefer `safeGet`: it returns the
+# component's default value (0 / empty string) for unset entities,
+# whereas `get` reverts.
 _STRING_VALUE_ABI = json.loads(
-    '[{"type":"function","name":"getValue",'
+    '[{"type":"function","name":"safeGet",'
     '"inputs":[{"name":"entity","type":"uint256"}],'
     '"outputs":[{"type":"string"}],"stateMutability":"view"}]'
 )
 _UINT_VALUE_ABI = json.loads(
-    '[{"type":"function","name":"getValue",'
+    '[{"type":"function","name":"safeGet",'
     '"inputs":[{"name":"entity","type":"uint256"}],'
     '"outputs":[{"type":"uint256"}],"stateMutability":"view"}]'
 )
 _UINT32_VALUE_ABI = json.loads(
-    '[{"type":"function","name":"getValue",'
+    '[{"type":"function","name":"safeGet",'
     '"inputs":[{"name":"entity","type":"uint256"}],'
     '"outputs":[{"type":"uint32"}],"stateMutability":"view"}]'
 )
@@ -408,7 +414,7 @@ _ID_COMPONENT_ABI = json.loads(
     '[{"type":"function","name":"getEntitiesWithValue",'
     '"inputs":[{"name":"v","type":"uint256"}],'
     '"outputs":[{"type":"uint256[]"}],"stateMutability":"view"},'
-    '{"type":"function","name":"getValue",'
+    '{"type":"function","name":"safeGet",'
     '"inputs":[{"name":"entity","type":"uint256"}],'
     '"outputs":[{"type":"uint256"}],"stateMutability":"view"},'
     '{"type":"function","name":"has",'
@@ -445,6 +451,61 @@ def _get_item_name(index: int) -> str:
                 for row in csv.DictReader(f):
                     _ITEM_NAMES[int(row["Index"])] = row["Name"]
     return _ITEM_NAMES.get(index, f"Unknown({index})")
+
+
+# ---------------------------------------------------------------------------
+# Quest catalog (catalogs/quests/quests.csv + objectives.csv)
+# These are documentation/expectation, NOT chain ground-truth. Keep that
+# distinction visible in any tool that surfaces them.
+# ---------------------------------------------------------------------------
+
+_QUEST_CATALOG: dict[int, dict] = {}
+_OBJECTIVES_BY_DESC: dict[str, dict] = {}
+
+
+def _strip_bom_keys(row: dict) -> dict:
+    """Strip UTF-8 BOM from any header key (objectives.csv has BOM)."""
+    return {(k.lstrip("\ufeff") if isinstance(k, str) else k): v for k, v in row.items()}
+
+
+def _load_quest_catalog() -> None:
+    if _QUEST_CATALOG and _OBJECTIVES_BY_DESC:
+        return
+    quests_csv = _REPO / "catalogs" / "quests" / "quests.csv"
+    objectives_csv = _REPO / "catalogs" / "quests" / "objectives.csv"
+    if quests_csv.exists():
+        with open(quests_csv, encoding="utf-8-sig") as f:
+            for raw in csv.DictReader(f):
+                row = _strip_bom_keys(raw)
+                try:
+                    idx = int(row.get("Index") or 0)
+                except (TypeError, ValueError):
+                    continue
+                if not idx:
+                    continue
+                _QUEST_CATALOG[idx] = row
+    if objectives_csv.exists():
+        with open(objectives_csv, encoding="utf-8-sig") as f:
+            for raw in csv.DictReader(f):
+                row = _strip_bom_keys(raw)
+                desc = (row.get("Description") or "").strip()
+                if desc:
+                    _OBJECTIVES_BY_DESC[desc] = row
+
+
+_load_quest_catalog()
+
+
+def _classify_revert(reason: str | None) -> str:
+    """Classify a quest-complete revert reason into a coarse category."""
+    if not reason:
+        return "none"
+    lo = reason.lower()
+    if "objs not met" in lo or "objectives not met" in lo:
+        return "objs_not_met"
+    if "not active" in lo:
+        return "not_active"
+    return "other"
 
 
 # ---------------------------------------------------------------------------
@@ -1104,8 +1165,15 @@ async def get_kamis_progress_batch(
             return {"index": kid, "error": str(exc)}
         stats = data.get("stats", {}) or {}
         health = stats.get("health", {}) or {}
+        harmony = stats.get("harmony", {}) or {}
+        violence = stats.get("violence", {}) or {}
+        power = stats.get("power", {}) or {}
+        slots = stats.get("slots", {}) or {}
         progress = data.get("progress", {}) or {}
         skills = data.get("skills", {}) or {}
+        traits = data.get("traits", {}) or {}
+        body = traits.get("body", {}) or {}
+        hand = traits.get("hand", {}) or {}
         return {
             "index": kid,
             "name": data.get("name"),
@@ -1115,6 +1183,15 @@ async def get_kamis_progress_batch(
             "unspent_points": skills.get("points"),
             "hp_base": health.get("base"),
             "hp_total": health.get("total"),
+            "harmony_base": harmony.get("base"),
+            "violence_base": violence.get("base"),
+            "power_base": power.get("base"),
+            "slots_base": slots.get("base"),
+            "slots_total": slots.get("total"),
+            "body_name": body.get("name"),
+            "body_affinity": body.get("affinity"),
+            "hand_name": hand.get("name"),
+            "hand_affinity": hand.get("affinity"),
             "investments": [
                 {"index": inv.get("index"), "points": inv.get("points")}
                 for inv in (skills.get("investments") or [])
@@ -1404,6 +1481,12 @@ _ABI_LISTING_BUY = json.loads(
     '{"name":"amts","type":"uint32[]"}],'
     '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"}]'
 )
+_ABI_AUCTION_BUY = json.loads(
+    '[{"type":"function","name":"executeTyped",'
+    '"inputs":[{"name":"itemIndex","type":"uint32"},'
+    '{"name":"amt","type":"uint32"}],'
+    '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"}]'
+)
 
 
 @mcp.tool()
@@ -1446,11 +1529,11 @@ def harvest_stop(kami_ids: list[int], account: str = "main") -> dict:
     if len(h_ids) == 1:
         return _send_tx(
             account, "system.harvest.stop", _ABI_HARVEST_STOP,
-            [h_ids[0]], gas_limit=2_000_000,
+            [h_ids[0]], gas_limit=4_000_000,
         )
     result = _send_batch_tx(
         account, "system.harvest.stop", _ABI_HARVEST_STOP,
-        "executeBatched", [h_ids], 2_000_000,
+        "executeBatched", [h_ids], 4_000_000,
     )
     result["kamis"] = kami_ids
     return result
@@ -1789,6 +1872,37 @@ def listing_buy(
         "system.listing.buy",
         _ABI_LISTING_BUY,
         [merchant_index, item_indices, amounts],
+        gas_limit=1_500_000,
+    )
+
+
+@mcp.tool()
+def auction_buy(
+    item_index: int,
+    amount: int = 1,
+    account: str = "main",
+) -> dict:
+    """Buy items from the global Dutch auction (Marketplace room 66).
+
+    Uses the OWNER wallet (not operator). GDA-priced: decays over time,
+    each purchase resets the price upward. No room gating on the tx
+    itself, but MSQ 29 ("Buy something in the Marketplace") is satisfied
+    by this system. Check the live price first with get_prices().
+
+    Auction items (live as of 2026-04):
+        10 = Gacha Ticket (paid in MUSU, target 32,000)
+        11 = Reroll Ticket (paid in Onyx Shards, target 50)
+
+    Args:
+        item_index: Index of the auction item.
+        amount: Amount to buy (uint32).
+        account: Account label.
+    """
+    return _send_tx_owner(
+        account,
+        "system.auction.buy",
+        _ABI_AUCTION_BUY,
+        [item_index, amount],
         gas_limit=1_500_000,
     )
 
@@ -2222,6 +2336,145 @@ _ABI_TRADE_COMPLETE = json.loads(
     '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"}]'
 )
 
+_ABI_TRADE_EXECUTE = json.loads(
+    '[{"type":"function","name":"executeTyped",'
+    '"inputs":[{"name":"tradeID","type":"uint256"}],'
+    '"outputs":[{"type":"bytes"}],"stateMutability":"nonpayable"}]'
+)
+
+
+@mcp.tool()
+def take_trade(trade_id: str, account: str = "main") -> dict:
+    """Take (execute) a pending trade as the taker. Owner wallet.
+
+    Pays the maker's buy items from your inventory and escrows them; the
+    trade moves to EXECUTED status until the maker calls complete().
+
+    To buy items the maker is selling for MUSU (Q29 "Buy at Marketplace"),
+    pass a trade where buy_item=1 (MUSU). Discover candidate trade IDs via
+    `list_open_sell_offers`.
+
+    Args:
+        trade_id: Trade entity ID (decimal or hex string starting with 0x).
+        account: Account label.
+    """
+    trade_int = int(trade_id, 16) if trade_id.startswith("0x") else int(trade_id)
+    return _send_tx_owner(
+        account, "system.trade.execute", _ABI_TRADE_EXECUTE, [trade_int]
+    )
+
+
+@mcp.tool()
+def list_open_sell_offers(
+    seed_account: str = "main",
+    max_offers: int = 50,
+) -> dict:
+    """Discover open sell offers from OTHER players (taker = buyer side).
+
+    The Kamiden indexer's GetOpenOffers requires a maker account filter — there
+    is no global "all offers" endpoint. We work around this by seeding the search
+    with counterparties from `seed_account`'s historical trades, then querying
+    each one's open offers. Returns offers where MAKER sells items for MUSU
+    (i.e., where TAKER is the buyer), sorted cheapest-first by total MUSU cost.
+
+    Use the returned `trade_id` with `take_trade()` to buy.
+
+    Caveat: discovery is bounded by the seed account's trade history. To widen
+    the search, complete more trades or pass an account that has done many.
+
+    Args:
+        seed_account: Account label whose trade history seeds the search.
+        max_offers: Cap the number of offers returned.
+    """
+    acct = _get_account(seed_account)
+    seed_eid = str(int(acct.owner_addr, 16))
+
+    # Step 1: get our own trade history → extract counterparty entity IDs
+    history_req = (
+        _proto_encode_string_field(1, seed_eid)
+        + _proto_encode_varint_field(2, 500)
+    )
+    history_payload = _kamiden_grpc_call(
+        "kamiden.KamidenService/GetTradeHistory", history_req
+    )
+    cps: set[str] = set()
+    if history_payload:
+        outer = _proto_decode_fields(history_payload)
+        for _, raw in outer.get(1, []):
+            if not isinstance(raw, bytes):
+                continue
+            f = _proto_decode_fields(raw)
+            maker = _proto_field_str(f, 2)
+            counterparty = _proto_field_str(f, 3)
+            if maker and maker != seed_eid and maker != "0":
+                cps.add(maker)
+            if counterparty and counterparty != seed_eid and counterparty != "0":
+                cps.add(counterparty)
+
+    # Step 2: also pull each counterparty's trade history → expand the set
+    expanded = set(cps)
+    for eid in list(cps):
+        try:
+            req = _proto_encode_string_field(1, eid) + _proto_encode_varint_field(2, 500)
+            payload = _kamiden_grpc_call(
+                "kamiden.KamidenService/GetTradeHistory", req
+            )
+            if not payload:
+                continue
+            outer = _proto_decode_fields(payload)
+            for _, raw in outer.get(1, []):
+                if not isinstance(raw, bytes):
+                    continue
+                f = _proto_decode_fields(raw)
+                m = _proto_field_str(f, 2)
+                cp = _proto_field_str(f, 3)
+                if m and m != seed_eid and m != "0":
+                    expanded.add(m)
+                if cp and cp != seed_eid and cp != "0":
+                    expanded.add(cp)
+        except Exception:
+            pass
+
+    # Step 3: query each candidate's open offers, keep MAKER-sell side
+    offers: list[dict] = []
+    for eid in expanded:
+        try:
+            req = _proto_encode_string_field(1, eid) + _proto_encode_varint_field(2, 500)
+            payload = _kamiden_grpc_call(
+                "kamiden.KamidenService/GetOpenOffers", req
+            )
+            trades = _parse_kamiden_trades(payload) if payload else []
+        except Exception:
+            continue
+        for t in trades:
+            # Existing parser's "BUY" side = maker buy_item is MUSU (f4=0x01) =
+            # maker is selling items for MUSU. Taker (us) pays MUSU and
+            # receives items — exactly what Q29 "Buy at Marketplace" wants.
+            if t["status"] == "PENDING" and t["side"] == "BUY":
+                offers.append(
+                    {
+                        "trade_id": t["trade_id_hex"],
+                        "maker_eid": eid,
+                        "item_index": t["item_index"],
+                        "item_name": t["item_name"],
+                        "item_amount": t["item_amount"],
+                        "musu_total": t["musu_amount"],
+                        "musu_per_unit": t["unit_price"],
+                        "summary": (
+                            f"{t['item_amount']}x {t['item_name']} for "
+                            f"{t['musu_amount']:,} MUSU"
+                        ),
+                    }
+                )
+
+    offers.sort(key=lambda o: o["musu_total"])
+    return {
+        "seed_account": seed_account,
+        "counterparties_searched": len(expanded),
+        "offers_found": len(offers),
+        "offers": offers[:max_offers],
+    }
+
 
 @mcp.tool()
 def get_account_trades(account: str = "main") -> dict:
@@ -2509,8 +2762,14 @@ def stop_harvest_batch(
 ) -> dict:
     """Stop harvests for multiple kamis in one transaction. Collects rewards automatically.
 
-    Uses executeBatchedAllowFailure — skips kamis that aren't harvesting
-    instead of reverting the entire batch. Max ~10 per batch recommended.
+    Uses executeBatchedAllowFailure — individual reverts skip silently
+    instead of reverting the entire batch. After the tx commits, this
+    function reads each kami's harvest entity state on-chain to detect
+    silent skips (session 46 bug: 15 starving kamis silently failed).
+    Returns `per_kami` map with the resulting harvest state and a
+    `stopped` boolean. `stopped_count`/`failed_count` summarize.
+
+    Max ~5 per batch is the safe upper bound (eth_estimateGas cap).
 
     Args:
         kami_ids: List of kami token indices (e.g. [45, 46, 47]).
@@ -2537,6 +2796,27 @@ def stop_harvest_batch(
     tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
 
+    # Post-tx verification: read each kami's harvest.state component.
+    # ACTIVE = still harvesting (silent skip), INACTIVE = stopped successfully.
+    state_addr = _resolve_component("component.state")
+    state_comp = w3.eth.contract(address=state_addr, abi=_STRING_VALUE_ABI)
+    per_kami: dict[int, dict] = {}
+    stopped = 0
+    failed = 0
+    for kid, hid in zip(kami_ids, harvest_ids):
+        try:
+            hstate = state_comp.functions.safeGet(hid).call()
+        except Exception as exc:
+            per_kami[kid] = {"harvest_state": "ERROR", "stopped": None, "error": str(exc)[:120]}
+            failed += 1
+            continue
+        is_stopped = hstate != "ACTIVE"
+        per_kami[kid] = {"harvest_state": hstate, "stopped": is_stopped}
+        if is_stopped:
+            stopped += 1
+        else:
+            failed += 1
+
     return {
         "tx_hash": "0x" + receipt.transactionHash.hex(),
         "status": "success" if receipt.status == 1 else "reverted",
@@ -2545,6 +2825,9 @@ def stop_harvest_batch(
         "account": account,
         "kami_ids": kami_ids,
         "count": len(kami_ids),
+        "stopped_count": stopped,
+        "failed_count": failed,
+        "per_kami": per_kami,
     }
 
 
@@ -2565,12 +2848,22 @@ _ABI_QUEST_DROP = _ABI_QUEST_COMPLETE  # same signature
 
 @mcp.tool()
 def get_active_quests(account: str = "main") -> dict:
-    """Enumerate all active quests for the account by reading on-chain state.
+    """Enumerate quests owned by the account and flag which are completed.
 
-    Returns quest entity IDs and, where possible, matched quest indices.
+    "Owned" = `component.id.quest.owns` lists the quest entity for this account.
+    Owned quests include both truly-active (accepted but not completed) and
+    completed ones; the chain keeps the entity around. `completed` is read via
+    `component.is.complete.has(qid)`.
 
     Args:
         account: Account label.
+
+    Returns:
+        owned_count, completed_count, truly_active_count, plus per-quest
+        dicts with {entity_id, quest_index?, completed}. `active_quest_count`
+        kept as a back-compat alias for `owned_count` — deprecated; future
+        callers should read `truly_active_count` if they want only the
+        in-progress quests.
     """
     acc_id = _account_entity_id(account)
 
@@ -2580,22 +2873,37 @@ def get_active_quests(account: str = "main") -> dict:
     )
     quest_eids = owns_comp.functions.getEntitiesWithValue(acc_id).call()
 
-    # Pre-compute entity IDs for known quest indices to reverse-map
+    is_complete_addr = _resolve_component("component.is.complete")
+    is_complete = w3.eth.contract(
+        address=is_complete_addr, abi=_BOOL_COMPONENT_ABI
+    )
+
     known_indices = list(range(1, 109)) + list(range(2001, 2017)) + list(range(3001, 3025))
     eid_to_index = {}
     for idx in known_indices:
         eid_to_index[_quest_entity_id(idx, acc_id)] = idx
 
     quests = []
+    completed_count = 0
     for eid in quest_eids:
-        q: dict = {"entity_id": hex(eid)}
+        try:
+            done = bool(is_complete.functions.has(eid).call())
+        except Exception:
+            done = False
+        if done:
+            completed_count += 1
+        q: dict = {"entity_id": hex(eid), "completed": done}
         if eid in eid_to_index:
             q["quest_index"] = eid_to_index[eid]
         quests.append(q)
 
+    owned = len(quests)
     return {
         "account": account,
-        "active_quest_count": len(quests),
+        "owned_count": owned,
+        "completed_count": completed_count,
+        "truly_active_count": owned - completed_count,
+        "active_quest_count": owned,  # back-compat alias; prefer owned_count
         "quests": quests,
     }
 
@@ -2617,7 +2925,7 @@ def get_quest_status(quest_index: int, account: str = "main") -> dict:
     state_comp = w3.eth.contract(address=state_addr, abi=_STRING_VALUE_ABI)
 
     try:
-        state = state_comp.functions.getValue(q_id).call()
+        state = state_comp.functions.safeGet(q_id).call()
         return {
             "quest_index": quest_index,
             "entity_id": hex(q_id),
@@ -2705,6 +3013,150 @@ def check_quest_completable(quest_index: int, account: str = "main") -> dict:
 
 
 @mcp.tool()
+def quest_state(quest_index: int, account: str = "main") -> dict:
+    """Discriminated read of a quest's on-chain state for the account.
+
+    Replaces the older `get_quest_status` (which read only `component.state`)
+    and disambiguates `check_quest_completable` (which conflates "not
+    accepted" with "objectives not met"). Free — no gas.
+
+    Returns:
+      quest_index, entity_id, owned, completed, completable_now,
+      revert_kind ("none"|"objs_not_met"|"not_active"|"other"),
+      revert_reason, state ("not_accepted"|"active_blocked"|"active_ready"|"completed").
+
+    Args:
+        quest_index: Quest index.
+        account: Account label.
+    """
+    acc_id = _account_entity_id(account)
+    q_id = _quest_entity_id(quest_index, acc_id)
+
+    owns_addr = _resolve_component("component.id.quest.owns")
+    owns = w3.eth.contract(address=owns_addr, abi=_ID_COMPONENT_ABI)
+    is_complete_addr = _resolve_component("component.is.complete")
+    is_complete = w3.eth.contract(address=is_complete_addr, abi=_BOOL_COMPONENT_ABI)
+
+    try:
+        owned_owner = owns.functions.safeGet(q_id).call()
+        owned = owned_owner == acc_id
+    except Exception:
+        owned = False
+
+    try:
+        completed = bool(is_complete.functions.has(q_id).call())
+    except Exception:
+        completed = False
+
+    completable_now = False
+    revert_reason: str | None = None
+    if owned and not completed:
+        addr = _resolve_system("system.quest.complete")
+        contract = w3.eth.contract(address=addr, abi=_ABI_QUEST_COMPLETE)
+        acct = _get_account(account)
+        try:
+            contract.functions.executeTyped(q_id).call(
+                {"from": acct.operator_addr}
+            )
+            completable_now = True
+        except Exception as e:
+            revert_reason = str(e)
+
+    revert_kind = _classify_revert(revert_reason)
+
+    if completed:
+        state = "completed"
+    elif not owned:
+        state = "not_accepted"
+        # If the quest isn't owned, the staticCall would have reverted with
+        # "not active" — surface that for clarity even though we skipped it.
+        if revert_kind == "none":
+            revert_kind = "not_active"
+    elif completable_now:
+        state = "active_ready"
+    else:
+        state = "active_blocked"
+
+    return {
+        "quest_index": quest_index,
+        "entity_id": hex(q_id),
+        "owned": owned,
+        "completed": completed,
+        "completable_now": completable_now,
+        "revert_kind": revert_kind,
+        "revert_reason": revert_reason,
+        "state": state,
+    }
+
+
+@mcp.tool()
+def get_expected_objective(quest_index: int) -> dict:
+    """Return the catalog-expected objectives for a quest (NOT chain truth).
+
+    Reads `catalogs/quests/quests.csv` + `objectives.csv`. Use this BEFORE
+    spending gas on hypothesis-testing a stuck quest: it tells you what the
+    catalog *expects* the objective to be, which you can then compare to
+    the on-chain `complete()` revert (via `quest_state`).
+
+    Returns objectives as a list of {description, type, delta_type, operator,
+    index, value}; if the catalog row or any objective description is
+    missing, returns the partial result with a `note`.
+
+    Args:
+        quest_index: Quest index.
+    """
+    _load_quest_catalog()
+    quest = _QUEST_CATALOG.get(quest_index)
+    if not quest:
+        return {
+            "quest_index": quest_index,
+            "title": None,
+            "objectives": [],
+            "rewards": "",
+            "note": "no row in catalogs/quests/quests.csv",
+        }
+
+    obj_text = (quest.get("Objectives") or "").strip()
+    objectives: list[dict] = []
+    notes: list[str] = []
+    if obj_text:
+        # Objectives field is comma- or newline-separated free text
+        # matching `Description` rows in objectives.csv.
+        parts = [p.strip() for chunk in obj_text.split("\n") for p in chunk.split(",") if p.strip()]
+        for desc in parts:
+            row = _OBJECTIVES_BY_DESC.get(desc)
+            if not row:
+                notes.append(f"no objective row for: {desc!r}")
+                continue
+            try:
+                idx = int(row.get("Index")) if row.get("Index") not in (None, "") else None
+            except (TypeError, ValueError):
+                idx = None
+            try:
+                val = int(row.get("Value")) if row.get("Value") not in (None, "") else None
+            except (TypeError, ValueError):
+                val = None
+            objectives.append({
+                "description": desc,
+                "type": row.get("Type") or "",
+                "delta_type": row.get("DeltaType") or "",
+                "operator": row.get("Operator") or "",
+                "index": idx,
+                "value": val,
+            })
+
+    out = {
+        "quest_index": quest_index,
+        "title": quest.get("Title") or "",
+        "objectives": objectives,
+        "rewards": quest.get("Rewards") or "",
+    }
+    if notes:
+        out["note"] = "; ".join(notes)
+    return out
+
+
+@mcp.tool()
 def drop_quest(quest_index: int, account: str = "main") -> dict:
     """Drop/abandon an active quest. Costs gas.
 
@@ -2756,6 +3208,10 @@ def burn_items(
         gas_limit=1_000_000,
     )
 
+
+# ---------------------------------------------------------------------------
+# Crafting
+# ---------------------------------------------------------------------------
 
 _ABI_CRAFT = json.loads(
     '[{"type":"function","name":"executeTyped",'
@@ -2831,26 +3287,118 @@ _ABI_DROPTABLE_REVEAL = json.loads(
 
 @mcp.tool()
 def get_scavenge_points(node_index: int, account: str = "main") -> dict:
-    """Check accumulated scavenge points for a node.
+    """Check accumulated scavenge points + claimable tiers for a node.
 
-    Reads the Value component on the scavenge instance entity.
+    Reads the Value component on the scavenge instance entity (per-account
+    points) and the registry entity (per-node tier cost). Returns 0 points
+    if the account has never harvested at this node (instance not created).
 
     Args:
-        node_index: Harvest node index (e.g., 47 for Scrap Paths).
+        node_index: Harvest node index (e.g., 16 for Techno Temple).
         account: Account label.
     """
     instance_id = _scavenge_instance_id(node_index, account)
+    registry_id = _scavenge_registry_id(node_index)
     comp_addr = _resolve_component("component.value")
     comp = w3.eth.contract(address=comp_addr, abi=_UINT_VALUE_ABI)
-    try:
-        points = comp.functions.getValue(instance_id).call()
-    except Exception:
-        points = 0
+
+    # safeGet returns 0 for unset entities (e.g. account never harvested
+    # at this node), so no has()-gate needed.
+    tier_cost = comp.functions.safeGet(registry_id).call()
+    points = comp.functions.safeGet(instance_id).call()
+
+    claimable_tiers = points // tier_cost if tier_cost else 0
     return {
         "node_index": node_index,
         "account": account,
         "points": points,
+        "tier_cost": tier_cost,
+        "claimable_tiers": claimable_tiers,
+        "remainder": points % tier_cost if tier_cost else 0,
         "instance_entity": hex(instance_id),
+    }
+
+
+_UINT32_ARRAY_ABI = json.loads(
+    '[{"type":"function","name":"safeGet",'
+    '"inputs":[{"name":"entity","type":"uint256"}],'
+    '"outputs":[{"type":"uint32[]"}],"stateMutability":"view"}]'
+)
+
+
+@mcp.tool()
+async def get_scavenge_droptable(
+    node_index: int, account: str = "main"
+) -> dict:
+    """Read on-chain scavenge droptable + correctly compute drop probabilities.
+
+    The on-chain `weights` field for droptables is NOT a linear pick weight.
+    Drop probability is `prob_i = 2^weight_i / sum(2^weight_j)` — exponential
+    rarity bands. Weight 5 ≈ 4%, weight 7 ≈ 16%, weight 9 ≈ 64% in a 4-entry
+    table. Reading the raw weights as linear shares overestimates rare
+    drops by 4-5x.
+
+    Args:
+        node_index: Harvest node index (e.g., 16 for Techno Temple, 77 for
+            Thriving Mushrooms).
+        account: Account label (used for the API auth header).
+    """
+    nodes = await _api_get("/api/playwright/nodes", account)
+    node = next((n for n in nodes if n.get("index") == node_index), None)
+    if node is None:
+        return {"node_index": node_index, "error": "node not found"}
+
+    scav = node.get("scavenge") or {}
+    rewards = scav.get("rewards") or []
+    dt_rewards = [r for r in rewards if r.get("type") == "ITEM_DROPTABLE"]
+    if not dt_rewards:
+        return {
+            "node_index": node_index,
+            "node_name": node.get("name"),
+            "tier_cost": scav.get("cost"),
+            "droptables": [],
+            "error": "no ITEM_DROPTABLE reward on this node",
+        }
+
+    keys_addr = _resolve_component("component.keys")
+    weights_addr = _resolve_component("component.weights")
+    keys_c = w3.eth.contract(address=keys_addr, abi=_UINT32_ARRAY_ABI)
+    weights_c = w3.eth.contract(address=weights_addr, abi=_UINT32_ARRAY_ABI)
+
+    droptables = []
+    for r in dt_rewards:
+        dt_id = int(r["id"], 16)
+        keys = list(keys_c.functions.safeGet(dt_id).call())
+        weights = list(weights_c.functions.safeGet(dt_id).call())
+        exp_w = [2 ** w for w in weights]
+        total = sum(exp_w) or 1
+        items = [
+            {
+                "index": int(k),
+                "name": _get_item_name(int(k)),
+                "weight": int(w),
+                "probability": e / total,
+                "expected_per_100_tiers": round(100 * e / total, 2),
+            }
+            for k, w, e in zip(keys, weights, exp_w)
+        ]
+        droptables.append({
+            "entity": r["id"],
+            "keys": keys,
+            "weights": weights,
+            "items": items,
+        })
+
+    return {
+        "node_index": node_index,
+        "node_name": node.get("name"),
+        "tier_cost": scav.get("cost"),
+        "droptables": droptables,
+        "note": (
+            "Probabilities use 2^weight / sum(2^weight) — exponential "
+            "rarity bands, NOT linear pick. Weight 9=common, 7=uncommon, "
+            "5=rare, lower=rarer."
+        ),
     }
 
 
